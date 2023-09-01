@@ -1,0 +1,689 @@
+---
+title: 'R Graphics: quick (and partial) summary'
+author: "Marco Chierici, Giuseppe Jurman"
+date: "Mar 16, 2022"
+output:
+  pdf_document:
+    toc: yes
+    highlight: tango
+    latex_engine: xelatex
+  html_document:
+    theme: readable
+    toc: yes
+    toc_float: yes
+    df_print: paged
+editor_options:
+  chink_output_type: console
+---
+
+```{r setup, echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+knitr::opts_chunk$set(tidy.opts = list(width.cutoff = 60),
+                      tidy = TRUE,
+                      warning = FALSE,
+                      error = TRUE,
+                      collapse = TRUE,
+                      comment = "#>")
+set.seed(4561)
+```
+
+
+# Base R graphics
+
+(Partially abridged from: [An Introduction to R](https://cran.r-project.org/doc/manuals/r-release/R-intro.html))
+
+Graphical facilities are an important and extremely versatile component of the R environment. It is possible to use the facilities to display a wide variety of statistical graphs and also to build entirely new types of graph.
+
+The graphics facilities can be used in both interactive and batch modes, but in most cases, interactive use is more productive. Interactive use is also easy because at startup time R initiates a graphics device driver which opens a special graphics window for the display of interactive graphics. Although this is done automatically, it may useful to know that the command used is *X11()* under UNIX, *windows()* under Windows and quartz() under macOS. A new device can always be opened by *dev.new()*.
+
+Once the device driver is running, R plotting commands can be used to produce a variety of graphical displays and to create entirely new kinds of display.
+
+Plotting commands are divided into three basic groups:
+
+* High-level plotting functions create a new plot on the graphics device, possibly with axes, labels, titles and so on.
+* Low-level plotting functions add more information to an existing plot, such as extra points, lines and labels.
+* Interactive graphics functions allow you to interactively add information to, or extract information from, an existing plot, using a pointing device such as a mouse.
+
+In addition, R maintains a list of graphical parameters which can be manipulated to customize your plots.
+
+
+
+## Plotting functions
+
+One of the most frequently used plotting functions in R is the *plot()* function. This is a generic function: **the type of plot produced is dependent on the type or class of the first argument.**
+
+* *plot(x, y)*
+    + If x and y are vectors, plot(x, y) produces a scatterplot of y against x. The same effect can be produced by supplying one argument (second form) as either a list containing two elements x and y or a two-column matrix.
+
+* *plot(x)* 
+    + If x is a time series, this produces a time-series plot. If x is a numeric vector, it produces a plot of the values in the vector against their index in the vector. If x is a complex vector, it produces a plot of imaginary versus real parts of the vector elements.
+
+* *plot(f), plot(f, y)* 
+    + f is a factor object, y is a numeric vector. The first form generates a bar plot of f; the second form produces boxplots of y for each level of f.
+
+* *plot(df), plot(~ expr), plot(y ~ expr)*
+    + df is a data frame, y is any object, expr is a list of object names separated by ‘+’ (e.g., a + b + c). The first two forms produce distributional plots of the variables in a data frame (first form) or of a number of named objects (second form). The third form plots y against every object named in expr.
+
+R provides two very useful functions for representing multivariate data. If X is a numeric matrix or data frame, the command 
+
+*pairs(X)* 
+
+```{r}
+X = matrix(rnorm(100*5),100,5)
+pairs(X)
+```
+
+produces a pairwise scatterplot matrix of the variables defined by the columns of X, that is, every column of X is plotted against every other column of X and the resulting n(n-1) plots are arranged in a matrix with plot scales constant over the rows and columns of the matrix.
+
+Other high-level graphics functions produce different types of plots. Some examples are:
+
+* *qqnorm(x), qqline(x), qqplot(x, y)*
+    + Distribution-comparison plots. The first form plots the numeric vector x against the expected Normal order scores (a normal scores plot) and the second adds a straight line to such a plot by drawing a line through the distribution and data quartiles. The third form plots the quantiles of x against those of y to compare their respective distributions.
+
+* *hist(x), hist(x, nclass=n), hist(x, breaks=b, …)*
+    + Histogram of the numeric vector x. A sensible number of classes is usually chosen, but a recommendation can be given with the `nclass=` argument. Alternatively, the breakpoints can be specified exactly with the `breaks=` argument. If the `probability=TRUE` argument is given, the bars represent relative frequencies divided by bin width instead of counts.
+
+* *dotchart(x, …)*
+    + Dotchart of the data in x. In a dotchart, the y-axis gives a labelling of the data in x and the x-axis gives its value. For example it allows easy visual selection of all data entries with values lying in specified ranges.
+
+* *image(x, y, z, …), contour(x, y, z, …), persp(x, y, z, …)*
+    + Plots of three variables. The image plot draws a grid of rectangles using different colours to represent the value of z, the contour plot draws contour lines to represent the value of z, and the persp plot draws a 3D surface.
+    
+In the following, we'll see a few practical examples!
+
+### Arguments
+
+There are a number of arguments which may be passed to high-level graphics functions, as follows:
+
+* *add=TRUE*
+    + Forces the function to act as a low-level graphics function, superimposing the plot on the current plot (some functions only).
+
+* *axes=FALSE*
+    + Suppresses generation of axes—useful for adding your own custom axes with the axis() function. The default is `axes=TRUE`.
+
+* *log="x", log="y", log="xy"*
+    + Causes the x, y or both axes to be logarithmic. This will work for many, *but not all*, types of plot.
+
+* *type=character* controls the type of plot produced; possible choices for `character`:
+    + *"p"* individual points (the default)
+    + *"l"* lines
+    + *"b"* points connected by lines (both)
+    + *"o"* points overlaid by lines
+    + *"h"* vertical lines from points to the zero axis (high-density)
+    + *"s", "S"* Step-function plots. In the first form, the top of the vertical defines the point; in the second, the bottom.
+    + *"n"* No plotting at all. However, axes are still drawn (by default) and the coordinate system is set up according to the data. Ideal for creating plots with subsequent low-level graphics functions.
+
+* *xlab=string, ylab=string*
+    + Axis labels for the x and y axes. Use these arguments to change the default labels, usually the names of the objects used in the call to the high-level plotting function.
+
+* *main=string*
+    + Figure title, placed at the top of the plot in a large font.
+
+* *sub=string*
+    + Sub-title, placed just below the x-axis in a smaller font.
+
+
+### Customization
+
+Sometimes (often) the high-level plotting functions don’t produce exactly the kind of plot you desire. In this case, low-level plotting commands can be used to add extra information (such as points, lines or text) to the current plot.
+
+Some of the more useful low-level plotting functions are:
+
+* *points(x, y), lines(x, y)*
+    + Adds points or connected lines to the current plot. *plot()*’s `type=` argument can also be passed to these functions (and defaults to "p" for *points()* and "l" for *lines()*.)
+
+* *text(x, y, labels, …)*
+    + Add text to a plot at points given by x, y. Normally `labels` is an integer or character vector in which case `labels[i]` is plotted at point (`x[i]`, `y[i]`). The default is `1:length(x)`.
+
+*Note*: This function is often used in the sequence `plot(x, y, type="n"); text(x, y, names)`: the graphics parameter `type="n"` suppresses the points but sets up the axes, and the `text()` function supplies special characters, as specified by the character vector names for the points.
+
+* *abline(a, b), abline(h=y), abline(v=x), abline(lm.obj)*
+    + Adds a line of slope b and intercept a to the current plot. h=y may be used to specify y-coordinates for the heights of horizontal lines to go across a plot, and v=x similarly for the x-coordinates for vertical lines. Also lm.obj may be list with a coefficients component of length 2 (such as the result of model-fitting functions,) which are taken as an intercept and slope, in that order.
+
+* *polygon(x, y, …)*
+    + Draws a polygon defined by the ordered vertices in (x, y) and (optionally) shade it in with hatch lines, or fill it if the graphics device allows the filling of figures.
+
+* *legend(x, y, legend, …)*
+    + Adds a legend to the current plot at the specified position. Plotting characters, line styles, colors etc., are identified with the labels in the character vector legend. At least one other argument v (a vector the same length as legend) with the corresponding values of the plotting unit must also be given, as follows:
+    + `fill=v` colors for filled boxes
+    + `col=v` colors in which points or lines will be drawn
+    + `lty=v` line styles
+    + `lwd=v` line widths
+    + `pch=v` plotting characters (character vector)
+
+*  *title(main, sub)*
+    + Adds a title main to the top of the current plot in a large font and (optionally) a sub-title sub at the bottom in a smaller font.
+
+* *axis(side, …)*
+    + Adds an axis to the current plot on the side given by the first argument (1 to 4, counting clockwise from the bottom.) Other arguments control the positioning of the axis within or beside the plot, and tick positions and labels. Useful for adding custom axes after calling plot() with the axes=FALSE argument.
+
+Low-level plotting functions usually require some positioning information (e.g., x and y coordinates) to determine where to place the new plot elements. Coordinates are given in terms of user coordinates which are defined by the previous high-level graphics command and are chosen based on the supplied data.
+
+In some cases, it is useful to add mathematical symbols and formulae to a plot. This can be achieved in R by specifying an expression rather than a character string in any one of text, mtext, axis, or title. For example, the following code draws the formula for the Binomial probability function:
+
+* *text(x, y, expression(paste(bgroup("(", atop(n, x), ")"), p^x, q^{n-x})))*
+    + More information, including a full listing of the features available can obtained from within R using the commands: *help(plotmath), example(plotmath), demo(plotmath)*
+    
+```{r equation}
+plot(1:10, type="n")
+text(2, 9, expression(paste(bgroup("(", atop(n, x), ")"), p^x, q^{n-x})))
+```
+
+
+## Graphical parameters
+
+When creating graphics, particularly for presentation or publication purposes, R’s defaults do not always (read: never) produce exactly that which is required. You can, however, customize almost every aspect of the display using graphics parameters. R maintains a list of a large number of graphics parameters which control things such as line style, colors, figure arrangement and text justification among many others. Every graphics parameter has a name (such as ‘col’, which controls colors) and a value (a color number, for example).
+
+A separate list of graphics parameters is maintained for each active device, and each device has a default set of parameters when initialized. Graphics parameters can be set in two ways: either permanently, affecting all graphics functions which access the current device; or temporarily, affecting only a single graphics function call.
+
+The *par()* function is used to access and modify the list of graphics parameters for the current graphics device.
+
+* *par()*
+    + Without arguments, returns a list of all graphics parameters and their values for the current device.
+
+* *par(c("col", "lty"))*
+    + With a character vector argument, returns only the named graphics parameters (again, as a list.)
+
+* *par(col=4, lty=2)*
+    + With named arguments (or a single list argument), **sets the values** of the named graphics parameters, **and returns the original values** of the parameters as a list.
+
+Setting graphics parameters with the *par()* function **changes the value of the parameters permanently**, in the sense that all future calls to graphics functions (on the current device) will be affected by the new value. You can think of setting graphics parameters in this way as setting “default” values for the parameters, which will be used by all graphics functions unless an alternative value is given.
+
+Note that calls to *par()* always affect the global values of graphics parameters, even when *par()* is called from within a function. This is often undesirable behavior—usually we want to set some graphics parameters, do some plotting, and then restore the original values so as not to affect the user’s R session. You can restore the initial values by saving the result of *par()* when making changes, and restoring the initial values when plotting is complete.
+
+```{r, eval=FALSE}
+# set new params & save the "old" ones
+op <- par(col=4, lty=2)
+# ... plot stuff here ...
+# ...
+# restore the previous parameters
+par(op)
+```
+
+
+Graphics parameters may also be passed to (almost) any graphics function as named arguments. This has the same effect as passing the arguments to the *par()* function, except that the changes only last for the duration of the function call. For example: *plot(x, y, pch="+")* produces a scatterplot using a plus sign as the plotting character, *without* changing the default plotting character for future plots.
+
+Unfortunately, this is not implemented entirely consistently and it is sometimes necessary to set and reset graphics parameters using *par()*.
+
+Hereafter we show a partial list of the settable graphics parameters:
+
+* *pch="+"*
+    + Character to be used for plotting points. The default varies with graphics drivers, but it is usually a circle. Plotted points tend to appear slightly above or below the appropriate position unless you use "." as the plotting character, which produces centered points.
+
+* *pch=4*
+    + When pch is given as an integer between 0 and 25 inclusive, a specialized plotting symbol is produced. Those from 21 to 25 may appear to duplicate earlier symbols, but can be coloured in different ways. In addition, *pch* can be a character or a number in the range 32:255 representing a character in the current font.
+    
+```{r echo=FALSE}
+# pch symbol list
+grid <- expand.grid(1:5, 6:1)
+plot(grid, pch = 0:30, cex = 2.5,
+     yaxt = "n", xaxt = "n", # no x or y axes
+     ann = FALSE, xlim = c(0.5, 5.25),
+     ylim = c(0.5, 6.5))
+
+grid2 <- expand.grid(seq(0.6, 4.6, 1), 6:1)
+text(grid2$Var1[1:26], grid2$Var2[1:26], 0:25)
+```
+    
+
+* *lty=2*
+    + Line types. Alternative line styles are not supported on all graphics devices (and vary on those that do) but line type 1 is always a solid line, line type 0 is always invisible, and line types 2 and onwards are dotted or dashed lines, or some combination of both.
+
+* *lwd=2*
+    + Line widths. Desired width of lines, in multiples of the “standard” line width. Affects axis lines as well as lines drawn with *lines()*, etc. Not all devices support this, and some have restrictions on the widths that can be used.
+
+* *col=2*
+    + Colors to be used for points, lines, text, filled regions and images. A number from the current palette (see ?palette) or a named colour.
+
+* *col.axis, col.lab, col.main, col.sub*
+    + The color to be used for axis annotation, x and y labels, main and sub-titles, respectively.
+
+* *font=2*
+    + An integer which specifies which font to use for text. If possible, device drivers arrange so that 1 corresponds to plain text, 2 to bold face, 3 to italic, 4 to bold italic and 5 to a symbol font (which include Greek letters).
+
+* *font.axis, font.lab, font.main, font.sub*
+    + The font to be used for axis annotation, x and y labels, main and sub-titles, respectively.
+
+* *adj=-0.1*
+    + Justification of text relative to the plotting position. 0 means left justify, 1 means right justify and 0.5 means to center horizontally about the plotting position. The actual value is the proportion of text that appears to the left of the plotting position, so a value of -0.1 leaves a gap of 10% of the text width between the text and the plotting position.
+
+* *cex=1.5*
+    + Character expansion. The value is the desired size of text characters (including plotting characters) relative to the default text size.
+
+* *cex.axis, cex.lab, cex.main, cex.sub*
+    + The character expansion to be used for axis annotation, x and y labels, main and sub-titles, respectively.
+
+
+
+## Scatter plots
+
+
+We begin by creating a data set consisting of 100 undergraduate students’ math and reading test scores. The test scores are on a scale of 0 to 100. Each individual has also been assigned to either the Paper Test or the Electronic Test format (`TestFormat` column) and either the Classroom or Home setting (`TestLocation` column).
+
+```{r data-generation}
+set.seed(100)
+MathGrade <- rnorm(n = 100, mean = 70, sd = 10) # random values
+set.seed(1000)
+ReadingGrade <- rnorm(n = 100, mean = 65, sd = 13)
+TestLocation <- c(rep("Classroom", 50), rep("Home", 50))
+TestFormat <- c(rep("Paper", 25), rep("Electronic", 25), rep("Paper", 25), rep("Electronic", 25))
+students <- data.frame(MathGrade, ReadingGrade, TestLocation, TestFormat)
+
+# Marginal Conditions
+PaperTest <- students %>% dplyr::filter(TestFormat == "Paper")
+ElectronicTest <- students %>% dplyr::filter(TestFormat == "Electronic")
+Classroom <- students %>% dplyr::filter(TestLocation == "Classroom")
+Home <- students %>% dplyr::filter(TestLocation == "Home")
+
+# Cell Conditions
+PaperTestHome <- students %>% dplyr::filter(TestFormat == "Paper", TestLocation == "Home")
+PaperTestClassroom <- students %>% dplyr::filter(TestFormat == "Paper", TestLocation == "Classroom")
+ElectronicTestHome <- students %>% dplyr::filter(TestFormat == "Electronic", TestLocation == "Home")
+ElectronicTestClassroom <- students %>% dplyr::filter(TestFormat == "Electronic", TestLocation == "Classroom")
+```
+
+
+
+```{r}
+plot(students$MathGrade, students$ReadingGrade)
+# equivalent:
+plot(ReadingGrade ~ MathGrade, data=students)
+```
+
+
+
+```{r}
+# add a title
+plot(students$MathGrade, students$ReadingGrade, main = "Title")
+# and a subtitle
+plot(students$MathGrade,
+     students$ReadingGrade,
+     main = "Title",
+     sub = "Subtitle")
+# add axis labels
+plot(students$MathGrade, students$ReadingGrade, main = "Title", sub = "Subtitle", xlab = "Math grade", ylab = "Reading grade")
+# change axis limits
+plot(students$MathGrade, students$ReadingGrade, main = "Title", sub = "Subtitle", xlab = "Math grade", ylab = "Reading grade", xlim=c(0, 100), ylim=c(0, 100))
+# put all together, and also remove the outer frame
+plot(students$MathGrade, students$ReadingGrade, main = "Math grade vs. Reading grade", sub = "All conditions", xlab = "Math grade", ylab = "Reading grade", xlim=c(0, 100), ylim=c(0, 100), frame.plot = FALSE)
+```
+
+The function `scatterplot()` in the `car` package allows you to make enhanced scatter plots, with box plots in the margins, a regression line, a non-parametric regression smooth, and more.
+
+```{r}
+car::scatterplot(ReadingGrade ~ MathGrade, data=students)
+```
+
+This plot contains:
+
+* the data points
+* the regression line (solid)
+* the non-parametric regression smooth (dashed)
+* variability intervals (filled area)
+
+The default non-parametric regression smooth is computed by local polynomial regression fitting (loess) with degree=1. We can pass parameters to the smoother with the `smooth=` argument: for example, let's fit a loess with degree=2:
+
+```{r}
+car::scatterplot(ReadingGrade ~ MathGrade, data=students,
+                 smooth=list(degree=2)) # local polynomial regression of degree 2
+```
+
+
+We can also turn off the color filling of the confidence intervals, or disable them completely:
+
+```{r}
+car::scatterplot(ReadingGrade ~ MathGrade, data=students,
+                 smooth=list(degree=2, style="lines"))
+car::scatterplot(ReadingGrade ~ MathGrade, data=students,
+                 smooth=list(degree=2, style="none"))
+# the default is style="filled"
+```
+
+
+
+Let's go back to the default scatterplot. We can now plot the data based on the different groups we created earlier. The following four plots show the Math vs. Reading scatterplots for each of the marginal groups: Paper Test, Electronic Test, Classroom location, and Home location.
+
+```{r}
+main_title <- "Math grade vs. Reading grade"
+xlab <- "Math grade"
+ylab <- "Reading grade"
+
+plot(PaperTest$MathGrade, PaperTest$ReadingGrade, main=main_title,
+     sub="Paper Test",
+     xlab=xlab, ylab=ylab,
+     xlim=c(0, 100), ylim=c(0, 100))
+
+plot(ElectronicTest$MathGrade, ElectronicTest$ReadingGrade, main=main_title,
+     sub="Electronic Test",
+     xlab=xlab, ylab=ylab,
+     xlim=c(0, 100), ylim=c(0, 100))
+
+plot(Classroom$MathGrade, Classroom$ReadingGrade, main=main_title,
+     sub="Classroom",
+     xlab=xlab, ylab=ylab,
+     xlim=c(0, 100), ylim=c(0, 100))
+
+plot(Home$MathGrade, Home$ReadingGrade, main=main_title,
+     sub="Home",
+     xlab=xlab, ylab=ylab,
+     xlim=c(0, 100), ylim=c(0, 100))
+```
+
+
+We could plot the opposing situations (Paper and Electronic; Classroom and Home) side by side by setting the number of plots on the screen with the `par()` function, which affects the global graphical parameters. If we want to restore the parameters to their defaults, we have to save the "old parameters" while we set the new ones:
+
+```{r}
+# save the old parameters & set new ones
+op <- par(mfrow=c(1, 2)) # create a plot with graphs arranged on 1 row and 2 columns
+plot(PaperTest$MathGrade, PaperTest$ReadingGrade, main=main_title,
+     sub="Paper Test",
+     xlab=xlab, ylab=ylab,
+     xlim=c(0, 100), ylim=c(0, 100))
+
+plot(ElectronicTest$MathGrade, ElectronicTest$ReadingGrade, main=main_title,
+     sub="Electronic Test",
+     xlab=xlab, ylab=ylab,
+     xlim=c(0, 100), ylim=c(0, 100))
+# reset the parameters
+par(op)
+```
+
+
+```{r}
+# save the old parameters & set new ones
+op <- par(mfrow=c(1, 2)) # create a plot with graphs on 1 row and 2 columns
+plot(Classroom$MathGrade, Classroom$ReadingGrade, main=main_title,
+     sub="Classroom",
+     xlab=xlab, ylab=ylab,
+     xlim=c(0, 100), ylim=c(0, 100))
+
+plot(Home$MathGrade, Home$ReadingGrade, main=main_title,
+     sub="Home",
+     xlab=xlab, ylab=ylab,
+     xlim=c(0, 100), ylim=c(0, 100))
+# reset the parameters
+par(op)
+```
+
+
+
+We can also overplot different conditions on the same graph using the `points` function: to differentiate between conditions, we can use `col=` to change the points colors and `pch=` to change their shapes.
+
+```{r}
+# 1st plot
+plot(PaperTest$MathGrade, PaperTest$ReadingGrade, main=main_title,
+     sub="Paper Test",
+     xlab=xlab, ylab=ylab,
+     xlim=c(0, 100), ylim=c(0, 100))
+
+# points() just adds points to an existing plot:
+# it inherits main, sub, labels, axes limits, etc. from the "parent" plot
+points(ElectronicTest$MathGrade, ElectronicTest$ReadingGrade, main=main_title,
+       pch=2, col="blue")
+```
+
+Time to add a legend to our plot! We use the `legend()` functions once we are done plotting. Note that:
+
+* We have to specify colors and shapes manually;
+* The legend’s position can be one of topleft, topright, bottomleft, and bottomright.
+
+
+```{r}
+plot(PaperTest$MathGrade, PaperTest$ReadingGrade, main=main_title,
+     sub="Paper Test",
+     xlab=xlab, ylab=ylab,
+     xlim=c(0, 100), ylim=c(0, 100))
+
+points(ElectronicTest$MathGrade, ElectronicTest$ReadingGrade, main=main_title,
+       pch=2, col="blue")
+legend("topleft", legend=c("Paper Test", "Electronic Test"), col=c("Black", "Blue"),
+       pch=c(1, 2))
+```
+
+
+## Scatter plot matrices
+
+
+Basic scatter plot matrix with `pairs()` on the `iris` dataset:
+
+```{r}
+X <- iris %>% dplyr::select(-Species)
+pairs(X, pch=19)
+```
+
+
+Show only upper panel:
+
+```{r}
+pairs(X, pch=19, lower.panel=NULL)
+```
+
+
+Color points by groups (`Species` column):
+
+```{r}
+# define custom colors in RGB format
+my_cols <- c("#00AFBB", "#E7B800", "#FC4E07")
+pairs(X, pch=19, lower.panel=NULL,
+      cex=0.5, # make the points smaller
+      col=my_cols[iris$Species])
+```
+
+
+
+## Box plots
+
+In the following, we will look at data from the classical 1879 experiment of Michelson to measure the speed of light. This dataset is available in the `morley` object.
+
+```{r}
+mm <- as_tibble(morley)
+mm
+```
+
+There are five experiments (column `Expt`) with 20 runs each (column `Run`); `sl` is the recorded speed of light, suitably coded.
+
+Change `Expt` and `Run` into factors.
+
+```{r}
+mm$Expt <- factor(mm$Expt)
+mm$Run <- factor(mm$Run)
+```
+
+Compare the five experiments with simple boxplots:
+
+```{r, fig.height=8, fig.width=8}
+plot(Speed ~ Expt, data=mm, main="Speed of Light Data", xlab="Experiment No.")
+```
+
+Note that since `Expt` is a factor and `Speed` is numerical, `plot()` automatically draws boxplots for each factor level. We can also use the function `boxplot()`, as in the following examples.
+
+
+```{r}
+# single boxplot
+boxplot(mm$Speed)
+# same as the previous boxplot comparing the five experiments, without plot frames
+boxplot(Speed ~ Expt, data=mm, frame=FALSE)
+# don't plot outliers
+boxplot(Speed ~ Expt, data=mm, frame=FALSE, outline=FALSE)
+# add some labels
+boxplot(Speed ~ Expt, data=mm, frame=FALSE, main="Michelson Speed of light data", xlab="Experiment")
+# horizontal boxplots
+boxplot(Speed ~ Expt, data=mm, frame=FALSE, horizontal=TRUE)
+# customizing colors
+boxplot(Speed ~ Expt, data=mm, frame=FALSE, col=NULL, border="darkgreen")
+```
+
+
+## Strip charts
+
+A strip chart (`stripchart()`) can be thought of a "1D scatterplot". Let's see a few examples with Michelson's Speed of light data set:
+
+```{r}
+stripchart(Speed ~ Expt, data=mm, pch=19)
+# vertical plot with jittering
+stripchart(Speed ~ Expt, data=mm, pch=19,
+           vertical=TRUE, method="jitter")
+# change point shapes and color by group
+stripchart(Speed ~ Expt, data=mm, pch=1:5, col=1:5,
+           vertical=TRUE, method="jitter",
+           main="Speed by Experiment",
+           xlab="Experiment")
+
+```
+
+
+
+## Bar plots
+
+We use here a subset of the `VADeaths` data set, representing the death rates in Virginia stratified by population subgroups:
+
+```{r}
+VADeaths
+```
+
+
+```{r}
+# consider only the 1st three rows, to simplify
+x <- VADeaths[1:3, "Rural Male"]
+
+# basic bar plot
+barplot(x)
+# horizontal version
+barplot(x, horiz=TRUE)
+# change group names
+barplot(x, names.arg=c("A", "B", "C"))
+# customize colors
+barplot(x, col="white", border="steelblue")
+# different colors for each group
+barplot(x, col = c("#999999", "#E69F00", "#56B4E9"))
+# add labels
+barplot(x, col = c("#999999", "#E69F00", "#56B4E9"),
+        main="Death rates in Virginia",
+        xlab="Age group",
+        ylab="Rate")
+```
+
+
+Bar plots can also be stacked or grouped:
+
+```{r}
+# define some colors
+palette <- ggsci::pal_startrek()
+my_cols <- palette(5)
+
+# stacked bar plots
+barplot(VADeaths, legend=rownames(VADeaths), col=my_cols)
+
+# grouped bar plots
+barplot(VADeaths, legend=rownames(VADeaths), col=my_cols,
+        beside=TRUE)
+
+# customized legend
+barplot(VADeaths, beside=TRUE, col=my_cols)
+legend("topleft", legend=rownames(VADeaths), fill=my_cols,
+       box.lty=0, cex=0.8)
+
+```
+
+
+## Line plots
+
+Basic line plots are drawn using a combination of `plot(x, y, type="l")` and `lines(x, y)`. We generate some variables and see a couple of examples:
+
+```{r}
+# data generation
+x <- seq(1, 10)
+y1 <- x*x
+y2 <- 2*y1
+
+# stair steps plot
+plot(x, y1, type="S",
+     xlab="x", ylab="y")
+# points + lines, custom color
+plot(x, y1, type="b", pch=19, col="darkorange",
+     xlab="x", ylab="y")
+# multiple lines:
+# 1. draw the 1st line plot
+plot(x, y1, type="b", pch=19, col="blue",
+     xlab="x", ylab="y")
+# 2. add the 2nd line
+lines(x, y2, pch=18, type="b", col="darkred", lty=2)
+# 3. (optional) add a legend
+legend("topleft", legend=c("x^2", "2x^2"), col=c("blue", "darkred"), lty=1:2, lwd=2, cex=0.8)
+```
+
+
+## Histograms and density plots
+
+Let's go back to our student's scores data set that we created initially.
+
+A basic histogram of a numerical vector `x` is created by the function `hist(x, [breaks=b])`, optionally specifying the (number of) breakpoints for binning `x` values.
+
+```{r}
+x <- students$MathGrade
+
+# basic histograms
+hist(x)
+hist(x, breaks=5)
+hist(x, breaks=20)
+# custom color
+hist(x, col="steelblue")
+```
+
+
+To produce a density plot, we first use `density()` to estimate the kernel density, which we can then draw with a standard call to `plot()`:
+
+```{r}
+dens <- density(x)
+plot(dens, col="blue", main="Density of Math grades")
+# a filled version using polygon():
+polygon(dens, col="blue")
+```
+
+
+## QQ plots (rankit plots)
+
+Quantile-quantile plots are useful to visually compare a data set with the normal distribution. A typical scenario involves fitting a linear regression model to some data and then checking the residuals for skewness, kurtosis and outliers (i.e., is the error term actually normally distributed?).
+
+```{r}
+# load the 'faithful' data set
+data(faithful)
+x <- as_tibble(faithful)
+x
+```
+
+We fit a linear model to predict the duration of an eruption (`eruptions`) from the waiting time between eruptions (`waiting`) for the Old Faithful geyser in Yellowstone National Park. Then we check whether the residuals follow a normal distribution.
+
+```{r}
+lm_fit <- lm(eruptions ~ waiting, data=x)
+summary(lm_fit)
+
+qqnorm(resid(lm_fit), main="Residuals rankit plot")
+qqline(resid(lm_fit))
+```
+
+
+## Dot charts
+
+Dot charts (or Cleveland dot plots) are typically used to visually represent ranked data. We'll see an example on the `mtcars` dataset:
+
+```{r}
+as_tibble(mtcars)
+```
+
+
+```{r}
+# arrange the data by increasing mpg
+x <- mtcars %>% dplyr::arrange(mpg)
+dotchart(x$mpg, labels=rownames(x), cex=0.5, pch=19, xlab="mpg")
+
+# group by "cyl" and color groups
+grps <- as.factor(x$cyl)
+# select the required number of colors from a custom palette
+my_cols <- ggsci::pal_futurama()(nlevels(grps))
+dotchart(x$mpg, labels=rownames(x),
+         groups=grps, gcolor=my_cols,
+         color=my_cols[grps],
+         cex=0.6, pch=19, xlab="mpg")
+```
+

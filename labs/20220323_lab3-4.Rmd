@@ -1,0 +1,817 @@
+---
+title: 'ggplot2: first steps'
+author: "Marco Chierici, Giuseppe Jurman"
+date: "Mar 23, 2022"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    theme: readable
+    toc: yes
+    toc_float: yes
+    df_print: paged
+editor_options:
+  chink_output_type: console
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(tidy.opts = list(width.cutoff = 60),
+                      tidy = TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      error = TRUE,
+                      collapse = TRUE,
+                      comment = "#>")
+set.seed(4561)
+```
+
+
+(Partially abridged from [r.statistics.co](http://r-statistics.co))
+
+# Intro
+
+[*ggplot2*](https://en.wikipedia.org/wiki/Ggplot2) is a data visualization package for the statistical programming language R. Created by [Hadley Wickham](https://vita.had.co.nz/papers/layered-grammar.pdf) in 2005, *ggplot2* is an implementation of Leland Wilkinson's [Grammar of Graphics](https://www.springer.com/it/book/9780387245447) — a general scheme for data visualization which breaks up graphs into semantic components such as scales and layers. 
+*ggplot2* can serve as a replacement for the base graphics in R and contains a number of defaults for web and print display of common scales. 
+Since 2005, *ggplot2* has grown in use to become one of the most popular R packages. It is licensed under GNU GPL v2.
+
+Nowadays *ggplot2* is acknowledged as the most elegant and aesthetically pleasing graphics framework available in R.
+
+In contrast to base R graphics, *ggplot2* allows the user to add, remove or alter components in a plot at a high level of abstraction.
+This abstraction comes at a cost, with *ggplot2* being slower than *lattice* graphics.
+
+One potential limitation of base R graphics is the "pen-and-paper model" utilized to populate the plotting device.
+Graphical output from the interpreter is added directly to the plotting device or window rather than separately for each distinct element of a plot.
+In this respect it is similar to the *lattice* package, though Wickham argues *ggplot2* inherits a more formal model of graphics from Wilkinson.
+As such, it allows for a high degree of modularity; the same underlying data can be transformed by many different scales or layers.
+
+*ggplot2* is usually loaded into R through [*tidyverse*](https://www.tidyverse.org/), a collection of R packages introduced by Hadley Wickham that *share an underlying design philosophy, grammar, and data structures* of tidy data (see Lab #1).
+The core packages are *ggplot2, dplyr, tidyr, readr, purrr, tibble, stringr*, and *forcats*, which provide functionality to model, transform, and visualize data.
+As of March 2021, the tidyverse package and some of its individual packages make up 5 out of the top 10 most downloaded R packages, and are the subject of multiple books and papers.
+
+Moreover, a number of packages extending *ggplot2* functionalities have appeared: among them, [*ggforce*](https://cran.r-project.org/web/packages/ggforce/vignettes/Visual_Guide.html) is one of the most relevant.
+
+Let's start loading the libraries
+
+```{r}
+library(tidyverse)
+```
+
+## Understanding the *ggplot* Syntax
+
+The syntax for constructing ggplots could be puzzling if you are a beginner or work primarily with base graphics. The main difference is that, unlike base graphics, ggplot works with dataframes (tibbles) and not individual vectors. All the data needed to make the plot is typically be contained within the dataframe supplied to the `ggplot()` call itself or can be supplied to respective geoms. More on that later.
+
+The second noticeable feature is that you can keep enhancing the plot by adding more layers (and themes) to an existing plot created using the `ggplot()` function.
+
+Let’s initialize a basic ggplot based on the `midwest` dataset.
+
+```{r}
+# setup
+options(scipen=999)  # turn off scientific notation like 1e+06
+data("midwest", package = "ggplot2")  # load the data
+# midwest <- read.csv("http://goo.gl/G1K41K") # alt source 
+
+midwest
+
+# init ggplot
+ggplot(midwest, aes(x=area, y=poptotal))  # area and poptotal are columns in 'midwest'
+```
+
+A **blank ggplot** is drawn. Even though the x and y are specified, there are no points or lines in it. 
+This is because ggplot doesn’t assume that you meant a scatterplot or a line chart to be drawn. 
+I have only told ggplot what dataset to use and what columns should be used for X and Y axis. 
+I haven’t explicitly asked it to draw any points.
+
+Also note that the *aes()* function is used to specify the X and Y axes. That’s because any information that is part of the source dataframe has to be specified inside the *aes()* function.
+
+## How to Make a Simple Scatterplot
+
+Let’s make a scatterplot on top of the blank ggplot by adding points using a geom layer called *geom_point*.
+
+```{r}
+ggplot(midwest, aes(x=area, y=poptotal)) + geom_point()
+```
+
+We got a basic scatterplot, where each point represents a county. 
+However, it lacks some basic components such as the plot title, meaningful axis labels etc. 
+Moreover, most of the points are concentrated on the bottom portion of the plot, which is not so nice. 
+You will see how to rectify these in upcoming steps.
+
+Like *geom_point()*, there are many such geom layers which we will see in a subsequent part in this lab. 
+For now, let’s just add a smoothing layer using *geom_smooth(method='lm')*. 
+Since the method is set as *lm* (short for linear model), it draws the line of best fit.
+
+```{r}
+# build the graph and save it into a variable, then plot
+g <- ggplot(midwest, aes(x=area, y=poptotal)) + geom_point() + geom_smooth(method="lm")  # set se=FALSE to turn off confidence bands
+# method=lm is the type of smoothing line we want, in this case a regression line
+plot(g)
+```
+
+The line of best fit is in blue. 
+Can you find out what other method options are available for *geom_smooth*? (note: see *?geom_smooth*). You might have noticed that the majority of points still lie in the bottom of the chart which doesn’t really look nice. 
+
+So, let’s change the Y-axis limits to focus on the lower half.
+
+## Adjusting the X and Y axis limits
+
+The X and Y axis limits can be controlled in 2 ways.
+
+### Method A: By deleting the points outside the range
+
+This will change the lines of best fit or smoothing lines as compared to the original data.
+
+This can be done by *xlim()* and *ylim()*. You can pass a numeric vector of length 2 (with max and min values) or just the max and min values itself.
+
+```{r}
+g <- ggplot(midwest, aes(x=area, y=poptotal)) + geom_point() + geom_smooth(method="lm")
+
+# delete the points outside the limits --> limits the data in some ranges
+g + xlim(c(0, 0.1)) + ylim(c(0, 1000000))
+# equivalent:
+# g + xlim(0, 0.1) + ylim(0, 1000000)
+```
+
+In this case, the chart was not built from scratch but rather was built on top of `g`.
+This is because the previous plot was stored as *g*, a ggplot object, which when called will reproduce the original plot.
+Using ggplot, you can add more layers, themes and other settings on top of this plot.
+
+Did you notice that the line of best fit became more horizontal compared to the original plot? 
+This is because, when using *xlim()* and *ylim()*, the points outside the specified range are deleted and will not be considered while drawing the line of best fit (using *geom_smooth(method='lm')*). 
+This feature might come in handy when you wish to know how the line of best fit would change when some extreme values (or outliers) are removed.
+
+### Method B: Zooming In
+
+The other method is to change the X and Y axis limits by zooming in to the region of interest without deleting the points. This is done using *coord_cartesian()*.
+
+Let’s store this plot as *g1*.
+
+```{r}
+g <- ggplot(midwest, aes(x=area, y=poptotal)) + geom_point() + geom_smooth(method="lm")
+
+# Zoom in without deleting the points outside the limits. 
+# As a result, the line of best fit is the same as the original plot.
+# We don't delete anything here!!
+g1 <- g + coord_cartesian(xlim=c(0,0.1), ylim=c(0, 1000000))  # zooms in
+plot(g1)
+```
+
+Since all points were considered, the line of best fit did not change.
+
+## How to Change the Title and Axis Labels
+
+I have stored this as *g1*. 
+Let’s add the plot title and labels for X and Y axis. 
+This can be done in one go using the *labs()* function with title, x and y arguments. 
+Another option is to use the *ggtitle()*, *xlab()* and *ylab()*.
+
+```{r}
+g <- ggplot(midwest, aes(x=area, y=poptotal)) + geom_point() + geom_smooth(method="lm")
+g1 <- g + coord_cartesian(xlim=c(0,0.1), ylim=c(0, 1000000))  # zooms in
+
+# Add Title and Labels
+g1 + labs(title="Area Vs Population", subtitle="From midwest dataset", y="Population", x="Area", caption="Midwest Demographics")
+
+# equivalent, but the caption needs labs():
+g1 + ggtitle("Area Vs Population", subtitle="From midwest dataset") + xlab("Area") + ylab("Population")
+```
+
+Excellent! So we'll see shortly the full function call.
+
+## How to Change the Color and Size of Points
+
+We can change the aesthetics of a geom layer by modifying the respective geoms. 
+Let’s change the color of the points and the line to a static value.
+
+```{r}
+ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(col="steelblue", size=3) +   # Set static color and size for points
+  geom_smooth(method="lm", col="firebrick") +  # change the color of line
+  coord_cartesian(xlim=c(0, 0.1), ylim=c(0, 1000000)) + 
+  labs(title="Area Vs Population", subtitle="From midwest dataset", y="Population", x="Area", caption="Midwest Demographics")
+```
+
+Suppose now we want the color to change based on another column in the source dataset `midwest`: then, we must specify it inside the *aes()* function.
+
+```{r}
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state), size=3) +  # Set color to vary based on state categories
+  geom_smooth(method="lm", col="firebrick", size=2) + 
+  coord_cartesian(xlim=c(0, 0.1), ylim=c(0, 1000000)) + 
+  labs(title="Area Vs Population", subtitle="From midwest dataset", y="Population", x="Area", caption="Midwest Demographics")
+plot(gg) # or: print(gg)
+```
+
+Now each point is colored based on the state it belongs because of `aes(col=state)`. 
+Not just color, but size, shape, stroke (thickness of boundary) and fill (fill color) can be used to discriminate groupings.
+
+As a bonus, the legend is added automatically. If needed, it can be removed by setting the *legend.position* to *None* from within a *theme()* function:
+
+```{r}
+gg + theme(legend.position="None")  # remove legend
+```
+
+Also, you can change the color palette entirely:
+
+```{r}
+gg + scale_colour_brewer(palette = "Set1")  # change color palette
+```
+
+More of such palettes can be found in the *RColorBrewer* package:
+
+```{r}
+library(RColorBrewer)
+head(brewer.pal.info, 10)  # show 10 palettes
+```
+
+![](http://r-statistics.co/screenshots/color_palettes.png)
+
+## How to Change the X Axis Texts and Ticks Location
+
+Now let’s see how to change the X and Y axis text and its location. This involves two aspects: *breaks* and *labels*. (Ticks are the numbers displayed long the axes)
+
+### Set the breaks
+
+The breaks should be of the same scale as the X axis variable. 
+Note that I am using *scale_x_continuous* (available also discreet, date, etc.) because, the X axis variable is a continuous variable. 
+Had it been a date variable, *scale_x_date* could be used. 
+Like *scale_x_continuous()* an equivalent *scale_y_continuous()* is available for Y axis.
+
+```{r}
+# Base plot
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state), size=3) +  # Set color to vary based on state categories.
+  geom_smooth(method="lm", col="firebrick", size=2) + 
+  coord_cartesian(xlim=c(0, 0.1), ylim=c(0, 1000000)) + 
+  labs(title="Area Vs Population", subtitle="From midwest dataset", y="Population", x="Area", caption="Midwest Demographics")
+
+# Change breaks
+gg + scale_x_continuous(breaks=seq(0, 0.1, 0.01))
+```
+
+### Change the labels
+
+You can optionally change the labels at the axis ticks with the argument `labels=*`, which takes a vector of the same length as `breaks`.
+Let me demonstrate by setting the labels to alphabets from a to k (though there is no meaning to it in this context).
+
+```{r}
+# Base Plot
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state), size=3) +  # Set color to vary based on state categories.
+  geom_smooth(method="lm", col="firebrick", size=2) + 
+  coord_cartesian(xlim=c(0, 0.1), ylim=c(0, 1000000)) + 
+  labs(title="Area Vs Population", subtitle="From midwest dataset", y="Population", x="Area", caption="Midwest Demographics")
+
+# Change breaks + label
+gg + scale_x_continuous(breaks=seq(0, 0.1, 0.01), labels = letters[1:11])
+```
+
+## How to Write Customized Texts for Axis Labels, by Formatting the Original Values?
+
+Let’s set the breaks for Y axis text as well and format the X and Y axis labels. I have used two methods for formatting labels:
+
+* Method 1: *sprintf()* -- to format `area` as % in the example below
+* Method 2: a user-defined function -- to format 1000’s in `population` to 1K scale
+
+Use whichever method feels convenient.
+
+```{r}
+# Base Plot
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state), size=3) +  # Set color to vary based on state categories.
+  geom_smooth(method="lm", col="firebrick", size=2) + 
+  coord_cartesian(xlim=c(0, 0.1), ylim=c(0, 1000000)) + 
+  labs(title="Area Vs Population", subtitle="From midwest dataset", y="Population", x="Area", caption="Midwest Demographics")
+
+# Change Axis Texts
+# in sprintf() 
+# 1 means integer part, and 2 means the number of digits after the dot
+gg + scale_x_continuous(breaks=seq(0, 0.1, 0.01), labels = sprintf("%1.2f%%", seq(0, 0.1, 0.01))) + 
+  scale_y_continuous(breaks=seq(0, 1000000, 200000), labels = function(x){paste0(x/1000, 'K')})
+# for each number divide by 1000 and attach the symbol K (in y axe)
+```
+
+## How to Customize the Entire Theme in One Shot using Pre-Built Themes?
+
+Finally, instead of changing the theme components individually (which I discuss in detail in a subsequent part), we can change the entire theme itself using **pre-built themes**. 
+The help page *?theme_bw* shows all the available built-in themes.
+
+Again, this is commonly done in a couple of ways. 
+
+* Use the *theme_set()* to set the theme **before** drawing the ggplot. Note that this setting will affect all future plots. 
+* Draw the *ggplot* and then add the overall theme setting (eg. *theme_bw()*)
+
+```{r}
+# Base plot
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state), size=3) +  # Set color to vary based on state categories.
+  geom_smooth(method="lm", col="firebrick", size=2) + 
+  coord_cartesian(xlim=c(0, 0.1), ylim=c(0, 1000000)) + 
+  labs(title="Area Vs Population", subtitle="From midwest dataset", y="Population", x="Area", caption="Midwest Demographics")
+
+gg <- gg + scale_x_continuous(breaks=seq(0, 0.1, 0.01))
+```
+
+```{r eval=FALSE}
+# method 1: Using theme_set()
+theme_set(theme_classic())  # not run
+gg
+```
+
+```{r}
+# method 2: Adding theme as a layer itself
+gg + theme_bw() + labs(subtitle="BW Theme")
+gg + theme_classic() + labs(subtitle="Classic Theme")
+```
+
+For more customized and fancy themes have a look at the *ggthemes* package and the *ggthemr* package.
+
+# Customizing the look and feel
+
+Let’s begin with a *scatterplot* of *Population* against *Area* from *midwest* dataset. 
+The point’s color and size vary based on *state* (categorical) and *popdensity* (continuous) columns respectively. 
+The below plot has the essential components such as the title, axis labels and legend setup nicely. But how to modify the looks?
+
+Most of the requirements related to look and feel can be achieved using the *theme()* function, which accepts a large number of arguments. Type *?theme* in the R console and see for yourself.
+
+```{r}
+# if you modified the theme by theme_set() previously:
+# theme_set(theme_bw())
+
+# Add plot components --------------------------------
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state, size=popdensity)) + 
+  geom_smooth(method="loess", se=F) + xlim(c(0, 0.1)) + ylim(c(0, 500000)) + 
+  labs(title="Area Vs Population", y="Population", x="Area", caption="Source: midwest")
+# 'loess' is a non linear interpolation
+# limiting the axes actually deletes points
+
+# Call plot ------------------------------------------
+plot(gg)
+```
+
+The arguments passed to *theme()* components require to be set using special *element_type()* functions. They are of 4 major types.
+
+1. *element_text()*: Since the title, subtitle and captions are textual items, *element_text()* function is used to set it.
+2. *element_line()*: Likewise, *element_line()* is use to modify line-based components such as the axis lines, major and minor grid lines, etc.
+3. *element_rect()*: Modifies rectangle components such as plot and panel background.
+4. *element_blank()*: Turns off displaying the theme item.
+
+More on this follows in upcoming discussion.
+
+Let’s discuss a number of tasks related to changing the plot output, starting with modifying the title and axis texts.
+
+## Adding Plot and Axis Titles
+
+Plot and axis titles and the axis text are part of the plot’s theme. 
+Therefore, it can be modified using the *theme()* function. The *theme()* function accepts one of the four *element_type()* functions mentioned above as arguments. Since the plot and axis titles are textual components, *element_text()* is used to modify them.
+
+Below, I have changed the font size, color, face, and line height. The axis text can be rotated by changing the angle.
+
+```{r}
+# Base Plot
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) +
+    geom_point(aes(col=state, size=popdensity)) + 
+    geom_smooth(method="loess", se=FALSE) + xlim(c(0, 0.1)) + ylim(c(0, 500000)) + 
+    labs(title="Area Vs Population", y="Population", x="Area", caption="Source: midwest")
+
+# Modify theme components -------------------------------------------
+gg + theme(plot.title=element_text(size=20, 
+                                   face="bold", 
+                                   #family="Roboto", #font problem!
+                                   color="tomato",
+                                   hjust=0.5,
+                                   lineheight=1.2),  # title
+           plot.subtitle=element_text(size=15, 
+                                      family="Roboto",
+                                      face="bold",
+                                      hjust=0.5),  # subtitle
+           plot.caption=element_text(size=15),  # caption
+           axis.title.x=element_text(vjust=0,  
+                                     size=15),  # X axis title
+           axis.title.y=element_text(size=15),  # Y axis title
+           axis.text.x=element_text(size=10, 
+                                    angle = 30,
+                                    vjust=.5),  # X axis text
+           axis.text.y=element_text(size=10))  # Y axis text
+```
+
+
+* *vjust*, controls the vertical spacing between title (or label) and plot.
+* *hjust*, controls the horizontal spacing. Setting it to 0.5 centers the title.
+* *family*, is used to specify the font
+* *face*, sets the font face (“plain”, “*italic*”, “***bold**”, “*bold.italic*”)
+
+Above example covers some of the frequently used theme modifications and the actual list is too long. So *?theme* is the first place you want to look at if you want to change the look and feel of any component.
+
+## Modifying legends
+
+Whenever your plot’s `geom` (like points, lines, bars, etc) is set to change the aesthetics (fill, size, col, shape or stroke) based on another column, as in `geom_point(aes(col=state, size=popdensity))`, a legend is automatically drawn.
+
+If you are creating a `geom` where the aesthetics are static, a legend is not drawn by default. In such cases you might want to create your own legend manually. The below examples are for cases where you have the legend created automatically.
+
+### How to Change the Legend Title
+
+Let’s now change the legend title. We have two legends, one each for color and size. The size is based on a continuous variable while the color is based on a categorical (discrete) variable.
+
+There are 3 ways to change the legend title.
+
+1. Using *labs()*
+
+```{r}
+# Base Plot
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state, size=popdensity)) + 
+  geom_smooth(method="loess", se=F) + xlim(c(0, 0.1)) + ylim(c(0, 500000)) + 
+  labs(title="Area Vs Population", y="Population", x="Area", caption="Source: midwest")
+
+gg + labs(color="State", size="Density")  # modify legend title
+```
+
+2. Using *guides()*
+
+```{r}
+# Base Plot
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state, size=popdensity)) + 
+  geom_smooth(method="loess", se=F) + xlim(c(0, 0.1)) + ylim(c(0, 500000)) + 
+  labs(title="Area Vs Population", y="Population", x="Area", caption="Source: midwest")
+
+gg + guides(color=guide_legend("State"), size=guide_legend("Density"))  # modify legend title
+```
+
+3. Using `scale_<aesthetic>_<vartype>()` format
+
+The format of `scale_<aesthetic>_<vartype>()` allows you to turn off legend for one particular aesthetic, leaving the rest in place. This can be done just by setting `guide=FALSE`. For example, if the legend is for size of points based on a continuous variable, then *scale_size_continuous()* would be the right function to use.
+
+```{r}
+# Base Plot
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state, size=popdensity)) + 
+  geom_smooth(method="loess", se=F) + xlim(c(0, 0.1)) + ylim(c(0, 500000)) + 
+  labs(title="Area Vs Population", y="Population", x="Area", caption="Source: midwest")
+
+# Modify Legend
+gg + scale_color_discrete(name="State") + scale_size_continuous(name = "Density", guide = FALSE)  # turn off legend for size
+```
+
+### How to Change Legend Labels and Point Colors for Categories
+
+This can be done using the respective *scale_aesthetic_manual()* function. 
+The new legend labels are supplied as a character vector to the labels argument. 
+If you want to change the color of the categories, it can be assigned to the values argument as shown in below example.
+
+```{r}
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state, size=popdensity)) + 
+  geom_smooth(method="loess", se=F) + xlim(c(0, 0.1)) + ylim(c(0, 500000)) + 
+  labs(title="Area Vs Population", y="Population", x="Area", caption="Source: midwest")
+
+gg + scale_color_manual(name="State", 
+                        labels = c("Illinois", 
+                                   "Indiana", 
+                                   "Michigan", 
+                                   "Ohio", 
+                                   "Wisconsin"), 
+                        values = c("IL"="blue", 
+                                   "IN"="red", 
+                                   "MI"="green", 
+                                   "OH"="brown", 
+                                   "WI"="orange"))
+```
+
+### Change the Order of Legend
+
+In case you want to show the legend for color (*State*) before size (*Density*), it can be done with the *guides()* function. 
+The order of the legend has to be set as desired.
+
+If you want to change the position of the labels inside the legend, set it in the required order as seen in previous example.
+
+```{r}
+# Base Plot
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state, size=popdensity)) + 
+  geom_smooth(method="loess", se=F) + xlim(c(0, 0.1)) + ylim(c(0, 500000)) + 
+  labs(title="Area Vs Population", y="Population", x="Area", caption="Source: midwest")
+
+gg + guides(colour = guide_legend(order = 1),
+            size = guide_legend(order = 2))
+```
+
+### How to Style the Legend Title, Text and Key
+
+The styling of legend title, text, key and the guide can also be adjusted. 
+The legend’s key is a figure-like element, so it has to be set using *element_rect()* function.
+
+```{r}
+# Base Plot
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state, size=popdensity)) + 
+  geom_smooth(method="loess", se=F) + xlim(c(0, 0.1)) + ylim(c(0, 500000)) + 
+  labs(title="Area Vs Population", y="Population", x="Area", caption="Source: midwest")
+
+gg + theme(legend.title = element_text(size=12, color = "firebrick"), 
+           legend.text = element_text(size=10),
+           legend.key=element_rect(fill='springgreen')) + 
+  guides(colour = guide_legend(override.aes = list(size=2, stroke=1.5))) 
+  # legend.key (in R) is the rectangle containing the element 
+```
+
+### How to Remove the Legend and Change Legend Positions
+
+The legend’s position inside the plot is an aspect of the theme. 
+So it can be modified using the *theme()* function. 
+If you want to place the legend inside the plot, you can additionally control the hinge point of the legend using *legend.justification*.
+
+The *legend.position* is the x and y axis position in chart area, where (0,0) is bottom left of the chart and (1,1) is top right. However, there are useful string presets such as "left"/"right" and "top"/"bottom".
+Likewise, *legend.justification* refers to the hinge point inside the legend.
+
+```{r}
+# Base Plot
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state, size=popdensity)) + 
+  geom_smooth(method="loess", se=F) + xlim(c(0, 0.1)) + ylim(c(0, 500000)) + 
+  labs(title="Area Vs Population", y="Population", x="Area", caption="Source: midwest")
+
+# No legend --------------------------------------------------
+gg + theme(legend.position="None") + labs(subtitle="No Legend")
+
+# Legend to the left -----------------------------------------
+gg + theme(legend.position="left") + labs(subtitle="Legend on the Left")
+
+# legend at the bottom and horizontal ------------------------
+gg + theme(legend.position="bottom", legend.box = "horizontal") + labs(subtitle="Legend at Bottom")
+
+# legend at bottom-right, inside the plot --------------------
+gg + theme(legend.title = element_text(size=12, color = "salmon", face="bold"),
+           legend.justification=c(1, 0), 
+           legend.position=c(0.95, 0.05),  
+           legend.background = element_blank(),
+           legend.key = element_blank()) + 
+  labs(subtitle="Legend: Bottom-Right Inside the Plot")
+
+# legend at top-left, inside the plot -------------------------
+gg + theme(legend.title = element_text(size=12, color = "salmon", face="bold"),
+           legend.justification=c(0, 1), 
+           legend.position=c(0.05, 0.95),
+           legend.background = element_blank(),
+           legend.key = element_blank()) + 
+  labs(subtitle="Legend: Top-Left Inside the Plot")
+```
+
+
+## Adding Text, Label and Annotation
+
+Let’s try adding some text. We will add text to only those counties that have population greater than 300K. In order to achieve this, I create another subsetted dataframe (*midwest_sub*) that contains only the qualifying counties.
+
+Then, draw the *geom_text* and *geom_label* with this new dataframe as the data source. 
+This will ensure that labels (*geom_label*) are added only for the points contained in the new dataframe.
+
+```{r}
+# Filter required rows.
+midwest_sub <- midwest %>% dplyr::filter(poptotal > 300000)
+midwest_sub$large_county <- ifelse(midwest_sub$poptotal > 300000, midwest_sub$county, "")
+
+# Base Plot
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state, size=popdensity)) + 
+  geom_smooth(method="loess", se=F) + xlim(c(0, 0.1)) + ylim(c(0, 500000)) + 
+  labs(title="Area Vs Population", y="Population", x="Area", caption="Source: midwest")
+
+# Plot text and label ------------------------------------------------------
+# here we use midwest_sub as the data source
+gg + geom_text(aes(label=large_county), size=2, data=midwest_sub) + labs(subtitle="With ggplot2::geom_text") + theme(legend.position = "None")   # text
+
+gg + geom_label(aes(label=large_county), size=2, data=midwest_sub, alpha=0.25) + labs(subtitle="With ggplot2::geom_label") + theme(legend.position = "None")  # label
+
+# Plot text and label that REPELS each other (using ggrepel pkg) ------------
+library(ggrepel)
+gg + geom_text_repel(aes(label=large_county), size=2, data=midwest_sub) + labs(subtitle="With ggrepel::geom_text_repel") + theme(legend.position = "None")   # text
+
+gg + geom_label_repel(aes(label=large_county), size=2, data=midwest_sub) + labs(subtitle="With ggrepel::geom_label_repel") + theme(legend.position = "None")   # label
+```
+
+Since the label is looked up from a different dataframe, we need to set it through the `data` argument.
+
+### How to Add Annotations Anywhere inside the Plot
+
+Let’s see how to add annotation to any specific point of the chart. 
+It can be done with the *annotation_custom()* function which takes in a *grob* ("grid graphical object") as the argument. 
+So, let’s create a grob that holds the text you want to display using the `grid` package.
+
+```{r}
+# Base Plot
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state, size=popdensity)) + 
+  geom_smooth(method="loess", se=F) + xlim(c(0, 0.1)) + ylim(c(0, 500000)) + 
+  labs(title="Area Vs Population", y="Population", x="Area", caption="Source: midwest")
+
+# Define and add annotation -------------------------------------
+library(grid)
+my_text <- "This text is at x=0.7 and y=0.8!"
+gg + annotation_custom(
+    grob = grid.text(my_text, x=0.7,  y=0.8, gp=gpar(col="firebrick", fontsize=14, fontface="bold"))
+    # x and y are the coordinates, gp is graphical parameter, gpar is a function       where we can specify the color, the font and so on
+    )
+```
+
+## Flipping and Reversing X and Y Axis
+### How to flip the X and Y axis?
+
+Easy: just add *coord_flip()*.
+
+```{r}
+# Base Plot
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state, size=popdensity)) + 
+  geom_smooth(method="loess", se=F) + xlim(c(0, 0.1)) + ylim(c(0, 500000)) + 
+  labs(title="Area Vs Population", y="Population", x="Area", caption="Source: midwest", subtitle="X and Y axis Flipped") + theme(legend.position = "None")
+
+print(gg)
+
+# Flip the X and Y axis -------------------------------------------------
+gg + coord_flip()
+```
+
+### How to reverse the scale of an axis?
+
+This is quite simple. Use *scale_x_reverse()* for X axis and *scale_y_reverse()* for Y axis.
+
+```{r}
+# Base Plot
+gg <- ggplot(midwest, aes(x=area, y=poptotal)) + 
+  geom_point(aes(col=state, size=popdensity)) + 
+  geom_smooth(method="loess", se=F) + 
+  labs(title="Area Vs Population", y="Population", x="Area", caption="Source: midwest", subtitle="Axis Scales Reversed") + theme(legend.position = "None")
+
+print(gg)
+
+# Reverse the X and Y Axis ---------------------------
+gg + scale_x_reverse() + scale_y_reverse()
+```
+
+## Faceting: Draw multiple plots within one figure
+
+Let’s use the *mpg* dataset for this one. 
+It is available in the *ggplot2* package, or you can import it from [this link](http://goo.gl/uEeRGu).
+
+```{r}
+data(mpg, package="ggplot2")  # load data
+# mpg <- read.csv("http://goo.gl/uEeRGu")  # alt data source
+
+mpg
+
+g <- ggplot(mpg, aes(x=displ, y=hwy)) + 
+      geom_point() + 
+      labs(title="hwy vs displ", caption = "Source: mpg") +
+      geom_smooth(method="lm", se=FALSE) + 
+      theme_bw()
+plot(g)
+```
+
+We have a simple chart of highway mileage (*hwy*) against the engine displacement (*displ*) for the whole dataset. But what if you want to study how this relationship varies for different classes of vehicles?
+
+### Facet Wrap
+
+The `facet_wrap()` is used to break down a large plot into multiple small plots for individual categories. It takes an *R formula* as the main argument. The items to the left of `~` form the rows while those to the right form the columns.
+
+By default, all the plots share the same scale in both X and Y axis. You can set them free by setting `scales='free'` but this way it could be harder to compare between groups.
+
+```{r}
+# Base Plot
+g <- ggplot(mpg, aes(x=displ, y=hwy)) + 
+    geom_point() + 
+    geom_smooth(method="lm", se=FALSE) + 
+    theme_bw()
+
+# Facet wrap with common scales
+g + facet_wrap( ~ class, nrow=3) + 
+    labs(title="hwy vs displ", caption = "Source: mpg", subtitle="ggplot2 - Faceting - Multiple plots in one figure")  # Shared scales
+
+# Facet wrap with free scales
+g + facet_wrap( ~ class, scales = "free") + 
+    labs(title="hwy vs displ", caption = "Source: mpg", subtitle="ggplot2 - Faceting - Multiple plots in one figure with free scales")  # Scales free
+```
+
+So, what do you infer from this? For one, most 2seater cars have higher engine displacement while the minivan and compact vehicles are on the lower side. This is evident from where the points are placed along the X-axis.
+
+Also, the highway mileage drops across all segments as the engine displacement increases. This drop seems more pronounced in compact and subcompact vehicles.
+
+### Facet Grid
+
+The headings of the middle and bottom rows take up significant space. The *facet_grid()* would get rid of it and give more area to the charts. The main difference with *facet_grid* is that it is not possible to choose the number of rows and columns in the grid.
+
+Let’s create a grid to see how it varies with manufacturer.
+
+```{r}
+# Base Plot
+g <- ggplot(mpg, aes(x=displ, y=hwy)) + 
+    geom_point() + 
+    labs(title="hwy vs displ", caption = "Source: mpg", subtitle="ggplot2 - Faceting - Multiple plots in one figure") +
+    geom_smooth(method="lm", se=FALSE) + 
+    theme_bw()
+
+# Add Facet Grid
+g1 <- g + facet_grid(manufacturer ~ class)  # manufacturer in rows and class in columns
+plot(g1)
+```
+
+
+Let’s make one more to vary by cylinder.
+
+```{r}
+# Base Plot
+g <- ggplot(mpg, aes(x=displ, y=hwy)) + 
+      geom_point() + 
+      geom_smooth(method="lm", se=FALSE) + 
+      labs(title="hwy vs displ", caption = "Source: mpg", subtitle="Ggplot2 - Facet Grid - Multiple plots in one figure") +
+      theme_bw()  # apply bw theme
+
+# Add Facet Grid
+g2 <- g + facet_grid(cyl ~ class)  # cyl in rows and class in columns.
+plot(g2)
+```
+
+It is possible to layout both these charts in the sample panel. I prefer the *gridExtra()* package for this.
+
+```{r}
+# Draw Multiple plots in same figure.
+library(gridExtra)
+gridExtra::grid.arrange(g1, g2, ncol=2)
+```
+
+
+## Modifying Plot Background, Major and Minor Axis
+### How to Change Plot background
+
+The background is a figure-like object, so we use `element_rect` inside a call to `theme()`:
+
+```{r}
+# Base Plot
+g <- ggplot(mpg, aes(x=displ, y=hwy)) + 
+      geom_point() + 
+      geom_smooth(method="lm", se=FALSE) + 
+      theme_bw()  # apply bw theme
+print(g)
+
+# Change Plot Background elements -----------------------------------
+g + theme(panel.background = element_rect(fill = 'khaki'),
+          panel.grid.major = element_line(colour = "burlywood", size=1.5),
+          panel.grid.minor = element_line(colour = "tomato", 
+                                          size=.25, 
+                                          linetype = "dashed"),
+          panel.border = element_blank(),
+          axis.line.x = element_line(colour = "darkorange", 
+                                     size=1.5, 
+                                     lineend = "butt"),
+          axis.line.y = element_line(colour = "darkorange", 
+                                     size=1.5)) +
+    labs(title="Modified Background", 
+         subtitle="How to Change Major and Minor grid, Axis Lines, No Border")
+
+# Change Plot Margins -----------------------------------------------
+g + theme(plot.background=element_rect(fill="salmon"), 
+          plot.margin = unit(c(2, 2, 1, 1), "cm")) +  # top, right, bottom, left
+    labs(title="Modified Background", subtitle="How to Change Plot Margin")  
+```
+
+### How to Remove Major and Minor Grid, Change Border, Axis Title, Text and Ticks
+
+```{r}
+# Base Plot
+g <- ggplot(mpg, aes(x=displ, y=hwy)) + 
+    geom_point() + 
+    geom_smooth(method="lm", se=FALSE) + 
+    theme_bw()
+
+g + theme(panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(), 
+          panel.border = element_blank(),
+          axis.title = element_blank(), 
+          axis.text = element_blank(),
+          axis.ticks = element_blank()) +
+    labs(title="Modified Background", subtitle="How to remove major and minor axis grid, border, axis title, text and ticks") 
+```
+
+### Add a Background Image
+
+```{r}
+library(grid)
+library(png)
+library(RCurl) # for downloading URLs
+
+img <- png::readPNG(getURLContent("https://upload.wikimedia.org/wikipedia/commons/c/c1/Rlogo.png"))  
+g_pic <- rasterGrob(img, interpolate=TRUE)
+
+# Base Plot
+g <- ggplot(mpg, aes(x=displ, y=hwy)) + 
+    geom_point() + 
+    geom_smooth(method="lm", se=FALSE) + 
+    theme_bw()
+
+g + theme(panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(), 
+          plot.title = element_text(size = rel(1.5), face = "bold"),
+          axis.ticks = element_blank()) + 
+  annotation_custom(g_pic, xmin=5, xmax=7, ymin=30, ymax=45)
+```

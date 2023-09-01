@@ -1,0 +1,622 @@
+---
+title: 'Geospatial mapping with R'
+author: "Marco Chierici"
+date: "June 1, 2022"
+output:
+  html_document:
+    theme: readable
+    toc: yes
+    toc_float: yes
+editor_options:
+  chink_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(tidy.opts = list(width.cutoff = 60),
+                      tidy = TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      fig.align = "center")
+set.seed(4561)
+
+library(tidyverse)
+```
+
+
+(Partially abridged from [R geodata workshop 2019](https://github.com/WZBSocialScienceCenter/r-geodata-workshop) & [USC POIR Workshop on Maps in R, 2017](https://github.com/thereseanders/Workshop-Maps-in-R))
+
+
+
+# Plotting on world maps
+
+## Coordinate systems
+
+We usually work with two-dimensional vector data, i.e., points located within a coordinate reference system (CRS).
+
+For example, the point (-69.94°, 42.6°) is represented in the WGS84 CRS (the world geodetic system used by GPS).
+
+Points describe location on a sphere (well, actually WGS84 models Earth as an ellipsoid) and its components are given in degrees:
+
+* -69.94° is the longitude (positive/negative: East/West of IERS reference meridian);
+* 42.6° is the latitude (positive/negative: North/South of the Equator).
+
+Points can be connected to form other geometric shapes such as lines or polygons.
+Points and shapes can represent many geographic entities: cities, buildings, countries, rivers, lakes, etc.
+
+## Packages
+
+We need third-party packages to extend R in order to work with geographical data (or geodata). Following are some examples:
+
+* `maps` - contains geo-data for national borders and administrative regions for several countries
+* `rgeos`, `maptools` - Misc. functions for operations on geometries
+* `sf` ("Simple Features for R"): reading, writing and transforming spatial data
+* `rnaturalearth` - allows interaction with [Natural Earth](https://www.naturalearthdata.com/) map data (more on this later).
+
+```{r eval=FALSE}
+install.packages(c("maps", "sf"))
+```
+
+
+## Basic maps
+
+As a first example, we will create a simple map of the continental United States. We get the data from the `maps` package and plot it using `ggplot2`.
+
+```{r}
+states_map <- map_data("state")
+```
+
+Let us look at the structure of the data we retrieved from `maps`. The data is stored as a data frame and contains observations that are characterized by unique combinations of longitude and latitude values. Each observation has the following attributes: group, order, region, and subregion if applicable.
+
+```{r}
+head(states_map)
+```
+
+The longitude and latitude information denotes points along the borders of countries and geographical regions. We can represent them as points in the x-y-coordinate system, plotting the longitude along the x-axis and latitude along the y-axis.
+
+```{r}
+ggplot(states_map, aes(x = long, y = lat)) +
+    geom_point()
+```
+
+Not really what we are aiming for, but it's a start.
+
+The `group` and `order` variables in the data set code relational information of the points. For example, there are 49 regions (all states minus Alaska and Hawaii, plus District of Columbia), 63 groups, and a varying number of points (observations) within each group. The observations denote the border points we plotted previously, and the order counter establishes the sequence in which they should be plotted.
+
+```{r}
+head(table(states_map$region))
+```
+
+
+We can use a `geom_polygon()` layer to plot the observations as polygons, rather than points. In order to do that, we need to specify the grouping parameter. If the data wasn't ordered correctly, we could use the `dplyr::arrange()` function to establish the correct sequencing of points for each polygon.
+
+```{r}
+ggplot(states_map, aes(x = long, y = lat, group = group)) +
+    geom_polygon()
+```
+
+
+The map appears to be a bit "squished". This is because the scaling of the x-axis and y-axis is not based on the scaling of longitude and latitude. We can pass special mapping parameters to `ggplot2` via the `coord_map()` command to achieve the correct aspect ratio or use different map projections. Note that the `mapproj` library is required to use this feature. 
+
+```{r}
+ggplot(states_map, aes(x = long, y = lat, group = group)) +
+    geom_polygon() +
+    theme_minimal() +
+    coord_map() # default is Mercator projection
+```
+
+
+```{r}
+ggplot(states_map, aes(x = long, y = lat, group = group)) +
+    geom_polygon() +
+    theme_minimal() +
+    coord_map("mollweide")
+```
+
+So far we explored a simple way to read and plot maps. As we will see in the next sections, more advanced and flexible methods are available.
+
+## Simple Features
+
+Most packages for working with geo-data in R rely on the Simple Features standard, which describes how objects in the real world can be represented in computers in terms of their spatial geometry. A feature has a *geometry* describing where the feature is located on Earth, plus a set of attributes describing other properties.
+
+For example: 
+
+* geometry: point at -73.94°, 40.6°
+* name: New York City
+* population: 8.6 M
+
+Or also:
+
+* geometry: polygons with points at different coordinates
+* name: Italy
+* population: 60 M
+* most popular meal: pizza
+
+A *spatial dataset* contains geodata in a `geometry` column and further attributes, like the ones we just saw.
+
+### World map
+
+Now, we make a world map. First, we load the required packages:
+
+```{r}
+library(ggplot2)
+library(maps)
+library(sf)
+```
+
+We can use `map()` to load the world data; then we convert it to a "simple features" object with `st_as_sf()`:
+
+```{r}
+worldmap_data <- st_as_sf(map('world', plot = FALSE, fill = TRUE))
+head(worldmap_data, n = 3)  # to have a look inside
+```
+
+We recognize this as a spatial dataset with a header giving some general info (geometry type, dimension, etc.), and two columns: `ID` (attribute) and `geom` (spatial data).
+
+What are the numbers in the `geom` column?
+
+
+We make a basic plot of the world map by adding a `geom_sf` layer to a `ggplot()` call:
+
+```{r}
+ggplot() + geom_sf(data=worldmap_data)
+```
+
+### Adding points
+
+Suppose you have a separate dataframe with the coordinates of a few landmarks you want to add to the map.
+
+```{r echo=FALSE}
+some_cities <- tibble::tribble(
+       ~name, ~long,  ~lat,
+       "Berlin", 13.38, 52.52,
+       "New York", -73.94, 40.60,
+       "Sydney", 151.21, -33.87
+)
+
+some_cities
+```
+
+We can add these by simply adding a `geom_point` layer:
+
+```{r}
+ggplot(some_cities) +
+    geom_sf(data=worldmap_data) +
+    geom_point(aes(x=long, y=lat), color="red")
+```
+
+Of course we can also add labels with `geom_label` (which draws a box around the text) or `geom_text` (which does not). While we are at it, we also get rid of the quite uninformative axis text and labels:
+
+```{r}
+ggplot(some_cities) +
+    geom_sf(data=worldmap_data) +
+    geom_point(aes(x=long, y=lat), color="red") +
+    geom_label(aes(x=long, y=lat, label=name),
+               hjust=0, vjust=1, nudge_x=3) +
+    theme(axis.title=element_blank(),
+          axis.text=element_blank())
+```
+
+Another improvement would be to turn off the plot grid.
+
+
+
+## Country names vs. Country codes
+
+Different names may refer to the same country (e.g. Germany / Federal Republic of Germany / BRD; Italy / Italian Republic / Republic of Italy), therefore they are often not a good identifier.
+
+ISO 3166-1 designates every country a two- or three-letter code (e.g. DE / DEU; IT / ITA) and it is often used in datasets.
+
+Let's create a map of Europe highlighting a random sample of EU countries together with their ISO codes: we'll use Natural Earth as map provider.
+
+```{r}
+library(rnaturalearth)
+library(ggrepel)
+
+# get Europe map from Natural Earth
+world <- ne_countries(type = 'map_units', returnclass = 'sf', continent = 'europe')
+# set coordinate system to EPSG 3035 (European LAEA projection) (more info: https://epsg.io/3035)
+world <- st_transform(world, 3035)
+world <- st_crop(world, xmin = 0, xmax = 7e6, ymin = 0, ymax = 5e6)
+labelsdf <- data.frame(label = sprintf('%s (%s)\nISO Codes: %s / %s',
+                                       world$name, world$formal_en,
+                                       world$iso_a2, world$iso_a3),
+                       stringsAsFactors = FALSE)
+labels_coords <- as.data.frame(st_coordinates(st_centroid(world$geometry)))
+labelsdf$x <- labels_coords$X
+labelsdf$y <- labels_coords$Y
+
+set.seed(9)
+world$show_label <- sample(c(TRUE, FALSE), nrow(labelsdf), replace = TRUE, prob = c(0.15, 0.85)) & !is.na(world$iso_a2)
+labelsdf <- labelsdf[world$show_label, ]
+
+ggplot() + geom_sf(aes(fill = show_label), data = world) +
+    geom_label_repel(aes(label = label, x = x, y = y), data = labelsdf, size = 3, min.segment.length = 0, alpha = 0.85) +
+    scale_fill_brewer(guide = "none", palette = 'Dark2') +
+    labs(title = 'Random sample of European countries w/ ISO codes',
+            caption = 'source: Natural Earth Data') +
+    theme_bw() +
+    theme(axis.text = element_blank(),
+          axis.title = element_blank(),
+          axis.ticks = element_blank())
+```
+
+
+## NUTS in EU
+
+The *Nomenclature of Territorial Units for Statistics* (NUTS: Nomenclature des Unités Territoriales Statistiques) is a geocode standard developed by Eurostat that divides the EU territory into regions at 3 different levels for socio-economic analyses of the regions.
+
+Candidate countries and countries inside EFTA also have NUTS regions (Norway, Switzerland, Albania, Turkey, etc.).
+
+Italy has 3 levels of [NUTS](https://en.wikipedia.org/wiki/NUTS_statistical_regions_of_Italy):
+
+* 5 Groups of regions (NUTS 1) - e.g., Northwest, Northeast, Central, South, Insular
+* 21 Regions (NUTS 2)
+* 107 Provinces (NUTS 3)
+
+Below the NUTS levels, Italy has two levels of local administrative units: level 1 corresponds to NUTS 3, and level 2 includes the 8094 Municipalities.
+
+In the following, we plot the map of Italy at the NUTS level 2, annotating a number of randomly chosen regions.
+
+```{r}
+# read NUTS level-2 info from Eurostat
+nutsrg <- read_sf("https://raw.githubusercontent.com/eurostat/Nuts2json/master/pub/v2/2021/3857/20M/nutsrg_2.json")
+# [optional] set coordinate system to EPSG 3857 (Web Mercator)
+st_crs(nutsrg) <- 3857
+# restrict to Italy NUTS codes
+nutsrg <- nutsrg[grepl("^IT", nutsrg$id), ]
+
+labelsdf <- data.frame(label = sprintf('%s: %s', nutsrg$id, nutsrg$na), stringsAsFactors = FALSE)
+labels_coords <- as.data.frame(st_coordinates(st_centroid(nutsrg$geometry)))
+labelsdf <- bind_cols(labelsdf, labels_coords)
+nutsrg$show_label <- rep(FALSE, nrow(nutsrg))
+
+set.seed(10)
+nutsrg$show_label[sample(1:nrow(nutsrg), 4)] <- TRUE
+labelsdf <- labelsdf[nutsrg$show_label, ]
+
+ggplot() + geom_sf(aes(fill = show_label), data = nutsrg) +
+    geom_label_repel(aes(label = label, x = X, y = Y), data = labelsdf, size = 3, min.segment.length = 0, alpha = 0.85) +
+    scale_fill_brewer(guide = "none", palette = 'Dark2') +
+    labs(title = 'Random sample of Italy NUTS level 2',
+         caption = 'source: Eurostat / https://github.com/eurostat/Nuts2json') +
+    theme_bw() +
+    theme(axis.text = element_blank(),
+          axis.title = element_blank(),
+          axis.ticks = element_blank())
+```
+
+
+# Sources for geodata
+
+A number of R libraries come already with geodata, or provide ways to download them programmatically. For example:
+
+- [maps](https://cran.r-project.org/web/packages/maps/index.html): World, USA, US states, US counties, and more
+- [mapdata](https://cran.r-project.org/web/packages/mapdata/index.html): World in higher resolution, China, Japan and more
+- [mapIT](https://github.com/quantide/mapIT): contains Italian maps
+- [rnaturalearth](https://cran.r-project.org/web/packages/rnaturalearth/index.html): R package for interacting with natural earth vector map data
+- [OpenStreetMap](https://cran.r-project.org/web/packages/OpenStreetMap/): Access to the OpenStreetMap API
+
+## Natural Earth Data
+
+[naturalearthdata.com](http://www.naturalearthdata.com/): *Natural Earth is a **public domain map dataset** available at 1:10m, 1:50m, and 1:110m scales. Featuring tightly integrated vector and raster data, with Natural Earth you can make a variety of visually pleasing, well-crafted maps with cartography or GIS software.
+
+Provides vector data for:
+
+- countries and provinces, departments, states, etc.
+- populated places (capitals, major cities and towns)
+- physical features such as lakes, rivers, etc.
+
+You can either download the data directly from the website or (even better) use the package [rnaturalearth](https://cran.r-project.org/web/packages/rnaturalearth/index.html).
+
+
+## Open Street Map
+
+- provides even more detail than *Natural Earth Data*: streets, pathways, bus stops, metro lines, etc.
+- [GeoFabrik](https://download.geofabrik.de/) provides downloads of the raw data
+- much harder to work with because of the complexity of the data.
+
+[OSM Admin Boundaries Map](https://osm-boundaries.com/) is a web-service to download administrative boundaries worldwide for different levels in different formats (shapefile, GeoJSON, etc.). It also contains meta-data depending on the country.
+
+
+# File formats
+
+There are many file formats that store data for *geographic information system (GIS)* software. The most popular include:
+
+* ESRI shapefile (`.shp`)
+* GeoJSON (`.geojson`, `.json`)
+* Keyhole Markup Language KML (`.kml`, `.kmz`), used by Google Earth
+* Geography Markup Language GML (`.gml`)
+
+Additional formats exist, such as vector data files (`.svg`, `.poly`) or databases (`.sql`, `.sqlite`) - although they are not specific for geodata, they can be used for this purpose.
+
+The good news is that the `sf` library can handle all popular file formats!
+
+
+# Linking data with `dplyr`: recap
+
+Suppose you have two datasets: `pm`, a table with particulate matter measurements in some cities; and `city_coords`, a table with GPS coordinates of many cities.
+
+```{r include=FALSE}
+pm <- tibble::tribble(
+    ~city, ~pm_mg,
+    'Amman', 999,
+    'Saltillo', 869,
+    'Usak', 814,
+    'The Bronx', 284,
+    'Seoul', 129
+)
+
+city_coords <- tibble::tribble(
+    ~city, ~lng, ~lat, 
+    'Amman', 31.910, 35.948,
+    'Saltillo', -100.994, 25.434,
+    'Berlin', 13.402, 52.520,
+    'Usak', 29.403, 38.673,
+    'New York', -73.94, 40.6,
+    'Seoul', 126.984, 37.536
+    )
+```
+
+```{r echo=FALSE}
+knitr::kable(pm, caption="pm dataset")
+```
+
+```{r echo=FALSE}
+knitr::kable(city_coords, caption="city_coords dataset")
+```
+
+To combine these datasets (for example, to create a choropleth map), we can use the `city` column for matching. We note that not all cities in `pm` also appear in `city_coords`, and vice versa.
+
+We recall the `dplyr`'s three different ways of joining tables:
+
+* `left_join(a, b, by=column)` always retains rows **on the left side** and fills up non-matching rows with NAs.
+
+```{r}
+knitr::kable(left_join(pm, city_coords, by="city"))
+```
+
+* `right`_join(a, b, by=column)` always retains rows **on the right side** and fills up non-matching rows with NAs.
+
+```{r}
+knitr::kable(right_join(pm, city_coords, by="city"))
+```
+
+* `right`_join(a, b, by=column)` only retains rows that match **on both sides**.
+
+```{r}
+knitr::kable(inner_join(pm, city_coords, by="city"))
+```
+
+
+# Choropleth maps
+
+In *choropleth maps*, regions are shaded according to the values of some variable, e.g.:
+
+```{r}
+knitr::include_graphics("https://www.un.org/waterforlifedecade/images/scarcity/2013_scarcity_graph_2.png")
+```
+
+By the way, the above picture is a nice example of *bad color scheme* (why?).
+
+We now want to create a choropleth map using data from the Berlin Senate Department for Urban Development and Housing (through [FIS Broker](https://fbinter.stadt-berlin.de/fb/index.jsp)). The data include indicators for monitoring of social development.
+
+```{r}
+# get the geoJSON
+bln_soc <- read_sf("https://github.com/WZBSocialScienceCenter/r-geodata-workshop/raw/master/data/bln_plr_sozind.geojson")
+head(bln_soc)
+```
+
+Our aim is to visualize the spatial distribution of `STATUS4`, representing child poverty rate in percent (i.e., the portion of children $<15$ y.o. living in a household that obtains social support).
+
+```{r}
+head(bln_soc[c('PLANNAME', 'STATUS4', 'geometry')], 5)
+```
+
+The first attempt is to directly plot the map with `fill` aesthetics depending on `STATUS4`:
+
+```{r}
+ggplot(bln_soc) + 
+    geom_sf(aes(fill = STATUS4))
+
+```
+
+But there's a problem: `STATUS4` is continuous, thus the color scale is continuous too. For choropleth maps, discrete ranges are better for discerning the colors.
+
+We need to do some binning: we decide to set 5 discrete bins (equally spaced from 0 to 100%). In the revised plot, we also change the color palette and adjust the appearance:
+
+```{r}
+# binning
+bln_soc$child_pov_bins <- cut(bln_soc$STATUS4, seq(0, 100, by = 20))
+# new plot
+ggplot(bln_soc) + 
+    geom_sf(aes(fill = child_pov_bins)) +
+    scale_fill_brewer(palette = 'OrRd', na.value = "grey90",
+                      guide = guide_legend(title = 'Child pov.\nranges (%)')) +
+    coord_sf(datum = NA) +  # disable lines ("graticule") in the background
+    theme_void()
+```
+
+# Combining data
+
+Most of the time, you'll have at least two datasets: one containing the measurement(s) you want to show, and the other containing the geodata.
+
+In the following example, we focus on data related to [People at risk of poverty or social exclusion by NUTS level-2 regions (*tgs00107*)](https://ec.europa.eu/eurostat/web/regions/data/main-tables) from Eurostat.
+
+First, we load the data:
+
+```{r}
+pov_risk <- read_csv("https://github.com/WZBSocialScienceCenter/r-geodata-workshop/raw/master/data/tgs00107_pov_risk_nuts2.csv")
+pov_risk$risk_pct_bins <- cut(pov_risk$risk_pct, seq(0, 100, by = 10))
+pov_risk_2016 <- filter(pov_risk, year == 2016)   # 2016 has fewest NAs
+head(pov_risk_2016)
+```
+
+Next, we load the GeoJSON containing the NUTS level-2 regions provided by Eurostat (the same we already used in one of the above examples):
+
+```{r}
+# read NUTS level-2 info from Eurostat
+nutsrg <- read_sf("https://raw.githubusercontent.com/eurostat/Nuts2json/master/pub/v2/2021/3857/20M/nutsrg_2.json")
+head(nutsrg)
+```
+
+We notice that both datasets contain a NUTS level-2 identifier, so it is easy to join them:
+
+```{r}
+pov_risk_2016_geo <- left_join(nutsrg, pov_risk_2016, by = c("id"="nuts"))
+head(pov_risk_2016_geo)
+```
+
+Now we have everything we need to plot the data as a choropleth map!
+
+```{r}
+ggplot(pov_risk_2016_geo) + 
+    geom_sf(aes(fill = risk_pct_bins), size=0.1) +
+    scale_fill_brewer(palette="OrRd", na.value="grey90", 
+                      guide=guide_legend(title="Pct. of people at\nrisk of poverty")) +
+    labs(title="Poverty in the EU (2016)",
+         subtitle="Percentage of people at risk of poverty or social exclusion",
+         caption="src: Eurostat") +
+    coord_sf(datum=NA) +  # disable lines ("graticule") in the background
+    theme_void()
+```
+
+## Visualizing spatio-temporal data
+
+The `pov_risk` dataset has a time dimension (column `year`): so it is tempting to create spatio-temporal visualizations to take advantage of this.
+
+We have a couple of options: 
+
+* we can create a plot with facets (`facet_wrap`);
+* to show a dynamic evolution along time, we can create an animation with `gganimate`.
+
+
+### Facet plot
+
+To prepare data for plotting, we focus on 4 years only: 2010, 2012, 2014, and 2016. When dealing with spatio-temporal data, we have to consider that *maps change over time*! In fact, the NUTS regions are released by Eurostat for 2010, 2013, and 2016. 
+
+So there's a little overhead here: we need to assign each year in `pov_risk` dataframe the corresponding map year (i.e., "data year" 2012 should be assigned the "map year" 2010 because it is the closest match in the past). Then, we would need to fetch the GeoJSON files for each "map year".
+
+
+```{r}
+# 0. select 2010, 2012, 2014, 2016
+pov_risk_10_to_16 <- filter(pov_risk, year %in% seq(2010, 2016, by = 2))
+# 1. assign each year in the poverty data the corresponding year of the map
+pov_risk_10_to_16 <- mutate(pov_risk_10_to_16, 
+                            map_year = case_when(year < 2013 ~ 2010L,
+                                                 year == 2014 ~ 2013L,
+                                                 year > 2014 ~ 2016L))
+
+# 2. load geo-data for each available year (2010, 2013 and 2016)
+map_yrs <- unique(pov_risk_10_to_16$map_year)
+nutsrg_per_yr <- list()
+i <- 1
+for (yr in map_yrs) {
+    nutsrg_per_yr[[i]] <- read_sf(glue::glue("https://raw.githubusercontent.com/eurostat/Nuts2json/master/pub/v2/{yr}/3857/20M/nutsrg_2.json"))
+    nutsrg_per_yr[[i]]$map_year <- yr
+    i <- i + 1
+}
+
+# generate a single data frame with each year's geo-data
+nutsrg_all_yrs <- do.call(rbind, nutsrg_per_yr)
+
+# join geo-data and poverty data also on year level
+pov_risk_10_to_16_geo <- left_join(nutsrg_all_yrs, pov_risk_10_to_16, by = c('id' = 'nuts', 'map_year'))
+
+# repeat missing geo-data for each year and set the respective year
+yr10_na <- filter(pov_risk_10_to_16_geo,  map_year == 2010L & is.na(year))
+yr10_na$year <- 2010
+pov_risk_10_to_16_geo <- rbind(pov_risk_10_to_16_geo, yr10_na)
+yr10_na$year <- 2012
+pov_risk_10_to_16_geo <- rbind(pov_risk_10_to_16_geo, yr10_na)
+yr13_na <- filter(pov_risk_10_to_16_geo,  map_year == 2013L & is.na(year))
+yr13_na$year <- 2014
+pov_risk_10_to_16_geo <- rbind(pov_risk_10_to_16_geo, yr13_na)
+yr16_na <- filter(pov_risk_10_to_16_geo,  map_year == 2016L & is.na(year))
+yr16_na$year <- 2016
+pov_risk_10_to_16_geo <- rbind(pov_risk_10_to_16_geo, yr16_na)
+
+# drop the rows with the missing geo-data
+pov_risk_10_to_16_geo <- filter(pov_risk_10_to_16_geo, !is.na(year))
+
+# 3. make the map using facets
+ggplot(pov_risk_10_to_16_geo) + 
+    geom_sf(aes(fill = risk_pct_bins), size = 0.1) +
+    scale_fill_brewer(palette="OrRd", na.value="grey90", 
+                      guide = guide_legend(title = 'Pct. of people at\nrisk of poverty')) +
+    labs(title = 'Poverty in southern EU 2016 (NUTS level-2)',
+         subtitle = 'Percentage of people at risk of poverty or social exclusion',
+         caption = 'src: Eurostat') +
+    coord_sf(datum = NA, xlim = c(-12e5, 35e5), ylim = c(41e5, 68e5)) +
+    facet_wrap(~ year, nrow = 2) +   # facets per year
+    theme_bw() + theme(axis.text = element_blank(), 
+                       axis.title = element_blank(),
+                       axis.ticks = element_blank(),
+                       legend.position = 'bottom')
+```
+
+
+### Animated plot
+
+```{r}
+library(gganimate)
+
+p <- ggplot(pov_risk_10_to_16_geo) + 
+    geom_sf(aes(fill = risk_pct_bins), size = 0.1) +
+    scale_fill_brewer(palette="OrRd", na.value="grey90", 
+                      guide = "none") +
+    coord_sf(datum = NA, xlim = c(-12e5, 35e5), ylim = c(41e5, 68e5)) +
+    theme_bw() + theme(axis.text = element_blank(), 
+                       axis.title = element_blank(),
+                       axis.ticks = element_blank(), 
+                       legend.position = 'bottom',
+                       title = element_text(size = 7),
+                       legend.text = element_text(size = 5)) +
+    transition_manual(year) +
+    labs(title = '{current_frame} - Poverty in southern EU {current_frame} (NUTS level-2)',
+         subtitle = 'Percentage of people at risk of poverty or social exclusion',
+         caption = 'source: Eurostat')    
+
+animate(p, width=700, height=450, duration=5, renderer=ffmpeg_renderer(format="webm"))
+```
+
+# Projections
+
+While you can unroll a cylinder or a cone to a sheet without tearing or stretching, you are unable to do the same with a sphere or an ellipsoid: they are "non-developable surfaces".
+
+<div style="width:100%; text-align:center">
+  <img src="https://live.staticflickr.com/4825/45811651315_039305b41f_b.jpg" alt="Orange peel" style="width:70%"><br>
+  <small>source: [flickr.com/photos/waferboard](https://www.flickr.com/photos/waferboard/45811651315)</small>
+</div>
+
+**Map projections** try to do the impossible: project points of a sphere to a plane. We already worked with WGS84 coordinates, which are locations on a sphere (ellipsoid) defined as degrees. The points from spherical/ellipsoidal coordinate system are converted to a "flat surface" cartesian coordinate system via a map projection.
+
+**All map projections distort:** area, shape, direction, distance and other properties can be different than on the actual sphere.
+
+**Mercator projection**:
+
+- very popular
+- strong distortions when far away from equator (Scandinavia, Antarctica, etc.)
+
+**Mollweide projection**:
+
+- equal-area projection
+- shape distortions when far away from center
+
+**Goode homolosine projection**:
+
+- equal-area projection
+- no distortion around equator
+- looks a bit like the peeled orange above
+
+
+Spatial datasets usually specify the CRS, so you should be able to set or transform it (e.g., `st_transform(map, 3035)`).
+You may want to use a different projection to have less distortion in the area of your interest.
+Another important point that you should take into account is the compatibility between datasets: for example, you may have country shapes with a specific CRS, and geocoded points with a different CRS.
+
+
+# Additional Resources
+
+* <https://github.com/openpolis/geojson-italy>: a repo with georeferenced info for all municipalities in Italy, and their breakdown by regions and provinces.
+* <https://github.com/riatelab/cartography>: thematic cartography
+* <https://hafen.github.io/geofacet/> : geographical faceting with ggplot2
+

@@ -1,0 +1,570 @@
+---
+title: "ggplot2 tests"
+author: "Sebastiano Cassol"
+date: "Jul 07, 2023"
+output:
+    pdf_document:
+        toc: yes
+    html_document:
+        theme: readable
+        toc: yes
+        toc_float: yes
+        df_print: paged
+    editor_options:
+        chink_output_type: console
+        chunk_output_type: console
+---
+
+## First plot with ggplot2
+
+Let's load the `tidyverse` library:
+```{r}
+library(tidyverse)
+```
+And now let's try a basic ggplot using the *midwest* dataset, but first is better to turn off the scientific notation.
+```{r}
+options(scipen = 999) # no notation like 1e+06
+data(midwest, package = "ggplot2") # load the data
+
+midwest # display the tibble
+```
+
+A simple scatterplot, with area on the x axes and the population total on the y axes. Each point represent a county. With `geom_smooth()` we also add the linear model (lm). Setting *se* to FALSE, removes the confidence band around the line.
+```{r}
+ggplot(data = midwest, aes(x = area, y = poptotal)) + geom_point() +
+    geom_smooth(method = lm, se = FALSE)
+```
+
+Now it's time to fix the visualization, zooming in to the range 0 - 0.1 and 0 - 1000000, adding title, subtitles and all the other stuff like colors, axes and so on.
+```{r}
+g <- ggplot(data = midwest, aes(x = area, y = poptotal)) +
+        geom_point(aes(col=state, size = popdensity)) + # use e.g. col = "steelblue" to set a fixed color
+        geom_smooth(method = loess, col="firebrick", se = FALSE) +
+        coord_cartesian(xlim = c(0, 0.1), ylim = c(0, 1000000))
+g <- g + ggtitle("Area Vs. Population", subtitle = "From midwest dataset") + xlab("Area") + ylab("Population total")
+g <- g + theme(legend.position = "None") # remove legend (for states)
+g + scale_x_continuous(breaks = seq(0, 0.1, 0.01)) # change breaks for x axes
+```
+
+Now we want to add some text labels near the points, e.g. for large counties that has more than 300000 of total population. We need `dplyr` functions and `ggrepel` to make the text not overlay the points!
+```{r}
+library(ggplot2)
+library(ggrepel)
+```
+```{r}
+# filtering with dplyr
+midwest_sub <- midwest %>% dplyr::filter(poptotal > 300000)
+midwest_sub$large_county <- ifelse(midwest_sub$poptotal > 300000, midwest_sub$county, "")
+
+gg <- ggplot(data = midwest, aes(x = area, y = poptotal)) +
+        geom_point(aes(col = state, size = popdensity)) +
+        geom_smooth(method = loess, se = FALSE) +
+        xlim(c(0, 0.1)) + ylim (c(0, 1000000)) +
+        labs(title = "Area vs. Population", y = "Population", x = "area", caption = "Source: midwest")
+
+gg + geom_label_repel(aes(label = large_county), size = 2, data = midwest_sub) +
+        labs(subtitle = "Using ggrepel: geom_label_repel") +
+        theme(legend.position = "None")
+```
+
+## First facet with ggplot2
+
+For this job, we'll change the dataset from midwest to *mpg*, containing cars info.
+```{r}
+data(mpg, package = "ggplot2")
+
+mpg
+```
+
+A simple scatterplot with mpg dataset.
+```{r}
+g <- ggplot(mpg, aes(x = displ, y = hwy)) +
+        geom_point() +
+        labs(title = "Highway mileage vs. Engine displacement", caption = "Source: mpg") +
+        geom_smooth(method = "lm", se = FALSE) +
+        theme_bw()
+plot(g)
+```
+
+It's time to facet, so breaking down a large plot into multiple small plots for individual categories.
+```{r}
+g <- ggplot(mpg, aes(x = displ, y = hwy)) +
+        geom_point() +
+        geom_smooth(method = "lm", se = FALSE) +
+        theme_bw()
+
+# facet wrap with common scales
+g + facet_wrap(~class, scales = "free", nrow = 3) + # use scale = free for having different X and Y axes on the various plots
+  labs(title = "Highway mileage vs. Engine displacement", caption = "Source: mpg", subtitle = "Faceting - multiple plots")
+```
+
+Now let's try `facet_grid()` instead of `facet_wrap()`. The grid doesn't let you specify the number of columns/rows.
+```{r}
+g <- ggplot(mpg, aes(x = displ, y = hwy)) + geom_point() +
+        labs(title = "Highway mileage vs. Engine displacement", caption = "Soruce: mpg", subtitle = "Faceting - multiple plots") +
+        geom_smooth(method = "lm", se = FALSE) + theme_bw()
+
+g1 <- g + facet_grid(manufacturer ~ class) # facet_grid(cyl ~ class) to plot cylinder vs. class
+plot(g1)
+```
+
+## Jitter Plot
+```{r}
+data(mpg, package = "ggplot2")
+theme_set(theme_bw())
+
+g <- ggplot(mpg, aes(cty, hwy))
+
+g + geom_jitter(width = 0.5, size = 1) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(subtitle = "mpg: city vs. highway mileage", y = "hwy", x = "cty", title = "Scatterplot with overlapping points")
+```
+
+## Counts Chart
+```{r}
+data(mpg, package = "ggplot2")
+theme_set(theme_bw())
+
+g <- ggplot(mpg, aes(cty, hwy))
+
+g + geom_count(col = "tomato3", show.legend = FALSE) +
+  labs(subtitle = "mpg: city vs. highway mile age", y = "hwy", x = "cty", title = "Count Plot")
+```
+
+## Bubble plot
+More adequate when we treat 4-dim data, with two numeric (X and Y), one categorical (for color) and another numeric (for size).
+```{r}
+mpg_select <- mpg %>% dplyr::filter(manufacturer %in% c("audi", "ford", "honda", "hyundai"))
+
+g <- ggplot(mpg_select, aes(displ, cty)) + labs(subtitle = "City Mileage vs. Displacement", title = "Bubble chart")
+
+g + geom_jitter(aes(col = manufacturer, size = hwy)) +
+        geom_smooth(aes(col = manufacturer), method = "lm", se = F)
+```
+
+## Correlogram
+```{r}
+library(ggcorrplot)
+
+data(mtcars)
+dim(mtcars)
+
+corr <- round(cor(mtcars), 1)
+
+ggcorrplot(corr, hc.order = FALSE,
+           type = "upper", # should be upper (sopra), lower (sotto) or full (riempire)
+           lab = "TRUE", # turn off/on labels
+           lab_size = 5, # size of labs
+           method = "circle", # type of element
+           colors = c("tomato2", "white", "springgreen3"), # color mapping
+           title = "Correlogram of mtcars", # title of the chart
+           ggtheme = theme_bw) # applied theme
+```
+
+## Diverging bars
+To create this we need to use `geom_bar()`, that is used also for bar chart and histograms.
+`geom_bar()` has the `stat` argument set to `count`, in case we provide only the X variable.
+```{r}
+data("mtcars")
+
+mtcars <- tibble::rownames_to_column(mtcars, var = "car name") %>% # create a column for car name
+    mutate(mpg_z = round(scale(mpg), 2), # round and scale (compute normalized) mpg
+    mpg_type = ifelse(mpg_z < 0, "below", "above"), # above or below avg flag
+    ) %>% arrange(mpg_z)
+
+mtcars$'car name' <- factor(mtcars$'car name', levels = mtcars$'car name') # convert to factor to retain sorted order in plot
+
+ggplot(mtcars, aes(x = `car name`, y = mpg_z, label = mpg_z)) +
+        geom_bar(stat = "identity", aes(fill = mpg_type), width = .5) +
+        scale_fill_manual(name = "Mileage",
+                          labels = c("Above Average", "Below Average"),
+                          values = c("above"="#00ba38", "below"="#f8766d")) +
+        labs(subtitle = "Normalized mileage from mtcars", title = "Diverging Bars") +
+        coord_flip() +
+        theme_bw()
+```
+
+
+Let's try some tricks on data for time series.
+```{r}
+library(lubridate)
+
+economics_m <- economics[1:24, ]
+
+# paste0 means concat the strings
+# month.abb is a built-in constant, that picks the first three letters of the month
+# month is a function that get out the month from a date (es. aug), similarly fot the function year (es. 1975)
+# lubridate is a library for treating and managing dates easily
+# final result is e.g. aug 1975
+lbls <- paste0(month.abb[month(economics_m$date)], " ", lubridate::year(economics_m$date))
+
+# for breaks simply get the dates
+brks <- economics_m$date
+
+# line plot with time series
+ggplot(economics_m, aes(x = date)) +
+        geom_line(aes(y = return_perc)) +
+        labs(title = "Monthly Time Series", subtitle = "Returns Percentage from Economics Dataset", caption = "Source: Economics", y = "Returns %") +
+        scale_x_date(labels = lbls, breaks = brks) +
+        theme_bw() +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5),
+                   panel.grid.minor = element_blank())
+
+```
+
+Other breaks trick could be this:
+```{r}
+economics_y <- economics[1:90, ]
+
+# compute one break at each year
+brks <- economics_y$date[seq(1, length(economics_y$date), 12)]
+
+# pick the year for every break
+lbls <- lubridate::year(brks)
+
+# plot a line chart
+
+ggplot(economics_y, aes(x = date)) +
+        geom_line(aes(y = return_perc)) +
+        labs(title = "Yearly Time Series",
+             subtitle = "Returns Percentage from Economics Dataset",
+        caption = "Source: Economics", y = "Returns %") +
+        scale_x_date(labels = lbls, breaks = brks) +
+        theme_bw() +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5),
+              panel.grid.minor = element_blank())
+```
+
+And what if we have multiple time series?
+```{r}
+# select only rown that has "psavert" or "uempmed", and (year) date between 1967 and 1981
+dataf <- economics_long %>% dplyr::filter(variable %in% c("psavert", "uempmed"),
+                                          lubridate::year(date) %in% c(1967:1981))
+
+# compute one break at each year
+brks <- dataf$date[seq(1, length(dataf$date), 12)]
+
+# pick the years as labels
+lbls <- lubridate::year(brks)
+
+# plot
+ggplot(dataf, aes(x = date)) +
+        geom_line(aes(y = value, col = variable)) +
+        labs(title = "Time Series of Returns Percentage",
+             subtitle = "Drawn from Long Data Format",
+             caption = "Source: Economics",
+             color = NULL) +
+        scale_x_date(labels = lbls, breaks = brks) +
+        scale_color_manual(labels = c("psavert", "uempmed"),
+                           values = c("psavert"="#00ba38", "uempmed"="#f8766d")) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 8),
+              panel.grid.minor = element_blank())
+```
+```{r}
+# simpler because data format are wide
+dataf <- economics %>% dplyr::select(date, psavert, uempmed) %>% dplyr::filter(lubridate::year(date) %in% c(1967:1981))
+
+# compute one break at each year
+brks <- dataf$date[seq(1, length(dataf$date), 12)]
+
+# pick the years as labels
+lbls <- lubridate::year(brks)
+
+# plot
+ggplot(dataf, aes(x = date)) +
+  geom_line(aes(y = psavert, col = "psavert")) +
+  geom_line(aes(y = uempmed, col = "uempmed")) +
+  labs(title = "Time Series of Returns Percentage",
+       subtitle = "Drawn from Long Data Format",
+       caption = "Source: Economics",
+       color = NULL) +
+  scale_x_date(labels = lbls, breaks = brks) +
+  scale_color_manual(name = "",
+                     values = c("psavert"="#00ba38", "uempmed"="#f8766d")) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 8),
+        panel.grid.minor = element_blank())
+```
+
+Similarly, we can create a stacked are chart.
+```{r}
+# simpler because data format are wide
+dataf <- economics %>% dplyr::select(date, psavert, uempmed) %>% dplyr::filter(lubridate::year(date) %in% c(1967:1981))
+
+# compute one break at each year
+brks <- dataf$date[seq(1, length(dataf$date), 12)]
+
+# pick the years as labels
+lbls <- lubridate::year(brks)
+
+ggplot(dataf, aes(x = date)) +
+        geom_area(aes(y = psavert + uempmed, fill = "psavert")) + # first layer
+        geom_area(aes(y = uempmed, fill = "uempmed")) + # second layer
+        labs(title = "Area Chart of Returns Percentage",
+             subtitle = "From Wide Data format",
+             caption = "Source: Economics", y = "value") +
+        scale_x_date(labels = lbls, breaks = brks) +
+        scale_fill_manual(name = "",
+                          values = c("psavert"="#00ba38", "uempmed"="#f8766d")) +
+        theme_bw() +
+        theme(panel.grid.minor = element_blank())
+
+
+```
+
+Prepare data for a heatmap..
+```{r}
+library(plyr)
+library(scales)
+library(zoo)
+
+dataf <- read.csv("https://raw.githubusercontent.com/selva86/datasets/master/yahoo.csv")
+# now the date column in a string (<chr>), we need to convert it
+dataf$date <- as.Date(dataf$date)
+# now is date type, we need to select only the date greater or equal than 2012
+dataf <- dataf[dataf$year >= 2012, ]
+
+# and now we need to create some additional date information for our heatmap
+dataf$yearmonth <- as.yearmon(dataf$date) # e.g. jun 2012
+dataf$yearmonthf <- factor(dataf$yearmonth) # convert to factor
+
+# now we need to compute week number of month
+dataf <- ddply(dataf, .(yearmonthf), transform, monthweek = 1 + week - min(week))
+
+# pick only the columns of our interest
+dataf <- dataf[, c("year", "yearmonthf", "monthf", "week", "monthweek", "weekdayf", "VIX.Close")]
+
+head(dataf)
+
+# heatmap
+ggplot(dataf, aes(monthweek, weekdayf, fill = VIX.Close)) +
+        geom_tile(colour = "white") +
+        facet_grid(year ~ monthf) +
+        scale_fill_gradient(low = "red", high = "green") +
+        labs(x = "Week of Month", y = "", title = "Time-Series Calendar Heatmap",
+             subtitle = "Yahoo Closing Price", fill = "Close")
+```
+
+And now is time for **dendrogram**!
+```{r}
+library(ggdendro)
+
+hc <- hclust(dist(USArrests), method = "average") # hierarchical clustering
+
+ggdendrogram(hc, rotate = TRUE, size = 2) + theme_bw()
+
+```
+
+## Interactivity
+```{r}
+library(plotly)
+data <- data.frame(cond = rep(c("condition_1", "condition_2"), each = 10),
+                    my_x = 1:100 + rnorm(100, sd = 9),
+                    my_y = 1:100 + rnorm(100, sd = 16))
+
+my_graph <- ggplot(data, aes(x = my_x, y = my_y)) + geom_point(shape = 1)
+
+p <- ggplotly(my_graph)
+
+p
+```
+
+
+# Data Cleaning
+```{r}
+library(janitor)
+
+moma <- read_csv("data_artworks.csv", col_types = cols(BeginDate = col_number(),
+                                                       EndDate = col_number(),
+                                                       `Length (cm)` = col_number(),
+                                                       `Circumference (cm)` = col_number(),
+                                                       `Duration (sec.)` = col_number(),
+                                                       `Diameter (cm)` = col_number())) %>% clean_names()
+
+#problems(moma)
+
+head(moma)
+```
+
+First, let's clean the *gender* variable.
+```{r}
+library(stringr)
+
+moma <- moma %>% mutate(
+  gender = str_replace_all(gender, fixed("female", ignore_case = TRUE), "F"), # replace `female` with `F`
+  gender = str_replace_all(gender, fixed("male", ignore_case = TRUE), "M"), # replace `male` with `M`
+  num_artists = str_count(gender, "[:alpha:]"), # count artists
+  num_artists = na_if(num_artists, 0), # set na if there are no artists
+  n_female_artists = str_count(gender, "F"), # count female
+  n_male_artists = str_count(gender, "M"), # count male
+  artist_gender = case_when(num_artists == 1 & n_female_artists == 1 ~ "Female", num_artists == 1 & n_male_artists == 1 ~ "Male")) # set male or female if there is only one artist
+
+```
+
+Now is the turn of *credit_line*.
+```{r}
+moma <- moma %>% mutate(
+    purchase = str_detect(credit_line, fixed("purchase", ignore_case = TRUE)),
+    gift = str_detect(credit_line, fixed("gift", ignore_case = TRUE)),
+    exchange = str_detect(credit_line, fixed("exchange", ignore_case = TRUE)))
+```
+
+Now we'll clean up year column with *lubridate* and we'll rename two date variables (artist birth/death).
+```{r}
+library(lubridate)
+
+moma <- moma %>%
+  mutate(
+    year_acquired = year(date_acquired)
+  ) %>% rename(
+    artist_birth_year = begin_date,
+    artist_death_year = end_date
+  ) %>% mutate(
+    year_created = str_extract(date, "\\d{4}"),
+    artist_birth_year = na_if(artist_birth_year, 0),
+    artist_death_year = na_if(artist_death_year, 0))
+```
+
+Let's take a look at the dataset.
+```{r}
+moma %>% distinct(classification) %>% print(n = Inf)
+```
+
+We decide to focus on **painting** classification.
+```{r}
+library(tidyr)
+
+moma <- moma %>%
+        filter(classification == "Painting") %>% # filter by `Painting`
+        drop_na(height_cm, width_cm) %>% # drop if no height or width are provided
+        filter(height_cm > 0 & width_cm > 0) # pick only the rows with positive height and width
+
+view(moma)
+```
+
+We need only a subset of columns, so we select them.
+```{r}
+moma <- moma %>%
+        select(title,
+               contains("artist"),
+               contains("year"),
+               contains("_cm"),
+               purchase,
+               gift,
+               exchange,
+               classification,
+               department
+        )
+```
+
+Better to save the dataset now that is ready.
+```{r}
+write_csv(moma, "artworks-cleaned.csv")
+```
+
+## Time to know the data
+
+```{r}
+library(here)
+library(readr)
+library(dplyr)
+
+moma <- read_csv("artworks-cleaned.csv")
+# How many paintings in dataset? So, how many rows/variables?
+# `dplyr::glimpse()` is here to help us.
+glimpse(moma)
+
+# What is the first painting acquired?
+moma %>% select(artist, title, year_acquired) %>% arrange(year_acquired)
+
+# What is the oldest painting?
+moma %>% select(artist, title, year_created) %>% arrange(year_created)
+
+# How many artists?
+moma %>% distinct(artist) %>% tally() %>% pull()
+
+# Which artist has the most paintings?
+moma %>% count(artist, sort = TRUE)
+
+# How many paintings by male vs female artists?
+moma %>% count(artist_gender)
+
+# How many female artists?
+moma %>%
+  count(artist_gender, artist, sort = TRUE) %>%
+  filter(artist_gender == "Female")
+
+# Another solution for counting by gender
+moma %>%
+  count(artist_gender, artist, sort = TRUE) %>%
+  group_by(artist_gender) %>%
+  top_n(1)
+
+# How many artist for each gender are there?
+moma %>% count(artist_gender, artist) %>% count(artist_gender)
+
+# When were the most paintings in the collection acquired (year)?
+moma %>% count(year_acquired, sort = TRUE) %>% top_n(1)
+
+# When wew the most painting in the collection created?
+moma %>% count(year_created, sort = TRUE) %>% top_n(1)
+
+# First painting by a solo female artist?
+moma %>%
+  filter(num_artists == 1 & n_female_artists == 1) %>%
+  select(title, artist, year_acquired, year_created) %>%
+  arrange(year_acquired)
+
+# Oldest painting from a solo female artist?
+moma %>%
+  filter(num_artists == 1 & n_female_artists == 1) %>%
+  select(title, artist, year_acquired, year_created) %>%
+  arrange(year_created)
+```
+
+## Now plot some charts!
+We know the data, we can try to recreate some plots or print a new one.
+
+```{r}
+library(tidyverse)
+
+ggplot(moma, aes(as.numeric(year_created), as.numeric(year_acquired))) +
+  geom_point(alpha = 0.3, na.rm = TRUE) +
+  geom_abline(intercept = c(0,0), colour = "red") +
+  labs(x = "Year Painted", y = "Year Acquired", title = "MoMa Keeps Its Collection Current", subtitle = "Year of a work's acquisition vs. year it was painted")
+```
+
+Now let's do a facet of the same plot, by artist gender (consider filtering only those paintings where there was one "solo" artist.
+```{r}
+moma_solo <- moma %>% filter(num_artists == 1)
+
+ggplot(moma_solo, aes(as.numeric(year_created), as.numeric(year_acquired))) +
+        geom_point(alpha = 0.1) + geom_abline(intercept = c(0,0), colour = "red") +
+        labs(x = "Year Painted", y = "Year Acquired") +
+        ggtitle("MoMa Keeps Its Collection Current") +
+        facet_wrap(~artist_gender)
+```
+
+Is time to plot painting dimensions, recreating a plot from *fivethirtyeight*.
+```{r}
+moma_dim <- moma %>%
+        filter(height_cm < 600, width_cm < 760) %>% # height < 15 ft. | width < 25 ft. (crica)
+        mutate(
+          hw_ratio = height_cm/width_cm,
+          hw_cat = case_when( # needed for colouring
+            hw_ratio > 1 ~ "taller than wide",
+            hw_ratio < 1 ~ "wider than tall",
+            hw_ratio == 1 ~ "perfect square"))
+
+library(ggthemes) # needed to load the theme used in the original plot
+
+ggplot(moma_dim, aes(x = width_cm, y = height_cm, colour = hw_cat)) +
+        geom_point(alpha = 0.5) +
+        ggtitle("MoMa Paintings, Tall and Wide") +
+        scale_color_manual(name = "", values = c("gray 50", "#FF9900", "#B14Cf0")) + # color for hw_cat
+        theme_fivethirtyeight() +
+        theme(axis.title = element_text()) +
+        labs(x = "Width", y = "Height") +
+        annotate(x = 200, y = 380, geom = "text", label = "Taller than\n Wide",
+                 color = "#ee5863", size = 5, hjust = 1, fontface = 2) +
+        annotate(x = 375, y = 100, geom = "text", label = "Wider than\nTall", color = "#6999cd", size = 5, hjust = 0, fontface = 2)
+```

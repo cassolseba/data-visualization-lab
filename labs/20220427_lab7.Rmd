@@ -1,0 +1,538 @@
+---
+title: "From data cleaning to data viz"
+author: "Marco Chierici, Giuseppe Jurman"
+date: "Apr 27, 2022"
+output:
+  html_document:
+    theme: readable
+    toc: yes
+    toc_float: yes
+    df_print: paged
+  pdf_document:
+    toc: yes
+    latex_engine: xelatex
+editor_options:
+  chink_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(tidy.opts = list(width.cutoff = 60),
+                      tidy = TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      error = TRUE)
+set.seed(4561)
+```
+
+
+(Partially abridged from Alison Hill's CS631 Labs)
+
+
+# What we'll do
+
+- Use `dplyr` functions learned at the beginning of the course
+- Practice to get to know a new dataset
+- Use `ggplot2` to recreate a few graphs
+- Create facetted plots with `ggplot2`
+
+
+# Data
+
+We'll use data from the New York's Museum of Modern Art (MoMA):
+
+- Publicly available on [GitHub](https://github.com/MuseumofModernArt/collection)
+- Analyzed by [fivethirtyeight.com](https://fivethirtyeight.com/features/a-nerds-guide-to-the-2229-paintings-at-moma/) (and others)
+
+
+# Data Cleaning
+
+The journey of a data scientist begins with some housekeeping on the input data, which is rarely ready-to-use but very often needs to be cleaned and prepared for the analyses.
+
+
+```{r}
+library(tidyverse)
+library(janitor)
+
+moma <- read_csv("data_artworks.csv",
+                 col_types = cols(
+                     BeginDate = col_number(),
+                     EndDate = col_number(),
+                     `Length (cm)` = col_number(),
+                     `Circumference (cm)` = col_number(),
+                     `Duration (sec.)` = col_number(),
+                     `Diameter (cm)` = col_number()
+                 )) %>% 
+    clean_names()
+
+problems(moma)
+
+```
+
+
+Wo do a basic cleaning with `stringr` of `gender` variable, which refers to the gender of the artist (a `()` is used a placeholder for "various artists")
+
+```{r}
+library(stringr)
+moma <- moma %>% 
+    mutate(gender = str_replace_all(gender, fixed("(female)", 
+                                                  ignore_case = TRUE), "F"),
+           gender = str_replace_all(gender, fixed("(male)", 
+                                                  ignore_case = TRUE), "M"),
+           num_artists = str_count(gender, "[:alpha:]"),
+           num_artists = na_if(num_artists, 0),
+           n_female_artists = str_count(gender, "F"),
+           n_male_artists = str_count(gender, "M"),
+           artist_gender = case_when(
+               num_artists == 1 & n_female_artists == 1 ~ "Female",
+               num_artists == 1 & n_male_artists == 1 ~ "Male"
+           ))
+```
+
+Let's also do some detecting of strings in the `credit_line` variable.
+
+```{r}
+moma <- moma %>% 
+  mutate(purchase = str_detect(credit_line, fixed("purchase", ignore_case = TRUE)),
+         gift = str_detect(credit_line, fixed("gift", ignore_case = TRUE)),
+         exchange = str_detect(credit_line, fixed("exchange", ignore_case = TRUE)))
+```
+
+Let's clean up some dates:
+
+- We'll clean up year acquired with `lubridate` to pull out the `year`.
+- We'll rename two date variables that are the artist birth/death year, but aren't labelled clearly.
+- We'll do a very rough estimate of the date each piece was created, using `stringr::str_extract()`
+
+```{r}
+library(lubridate)
+moma <- moma %>% 
+    mutate(year_acquired = year(date_acquired)) %>% 
+    rename(artist_birth_year = begin_date, artist_death_year = end_date) %>% 
+    mutate(year_created = str_extract(date, "\\d{4}"),
+           artist_birth_year = na_if(artist_birth_year, 0),
+           artist_death_year = na_if(artist_death_year, 0))
+```
+
+What different kinds of art classifications are available?
+
+```{r}
+moma %>% 
+  distinct(classification) %>% 
+  print(n = Inf)
+```
+
+We want to focus on standard rectangular paintings:
+
+- Filter based on `classification` ("Painting")
+- Drop all pieces of art that have either missing (`NA`) height or width measurements, or who have `0` for either height or width.
+
+```{r}
+library(tidyr)
+moma <- moma %>% 
+    filter(classification == "Painting") %>% 
+    drop_na(height_cm, width_cm) %>% 
+    filter(height_cm > 0 & width_cm > 0)
+```
+
+We focus only on a subset of columns:
+
+```{r}
+moma <- moma %>% 
+  select(title, contains("artist"), contains("year"), contains("_cm"),
+         purchase, gift, exchange, classification, department)
+```
+
+
+Now let's export this data frame, in case we want to start right away from the cleaned data.
+
+```{r}
+write_csv(moma, "artworks-cleaned.csv")
+```
+
+
+# Read in the data
+
+As you can see, we did a lot of cleaning and decision-making in the pre-processing. The data we have now contain only paintings and drawings in the MoMA collection.
+
+If you start working from the cleaned data, you just load them from the saved CSV file:
+
+```{r eval=FALSE}
+library(here)
+library(readr)
+library(dplyr)
+moma <- read_csv("artworks-cleaned.csv")
+```
+
+
+
+# Know the data
+
+You cleaned and prepared the data: now it's time to know your data and start asking questions.
+
+For example:
+
+1. How many paintings (rows) are in `moma`? How many variables (columns) are in `moma`?
+1. What is the first painting acquired by MoMA? Which year? Which artist? What title?
+1. What is the oldest painting in the collection? Which year? Which artist? What title?
+1. How many distinct artists are there?
+1. Which artist has the most paintings in the collection? How many paintings are by this artist?
+1. How many paintings by male vs female artists?
+
+And more:
+
+1. How many artists of each gender are there?
+1. In what year were the most paintings acquired? Created?
+1. In what year was the first painting by a (solo) female artist acquired? When was that painting created? Which artist? What title?
+
+Let's see how we can answer some of these questions!
+
+
+## How many paintings?
+
+- How many rows/observations are in `moma`?
+- How many variables are in `moma`?
+
+These questions can be answered, for example, using the `dplyr::glimpse()` function.
+
+
+```{r}
+moma
+glimpse(moma)
+```
+
+There are `r nrow(moma)` paintings in `moma`.
+
+
+## What is the first painting acquired?
+
+- What is the first painting acquired by MoMA (since they started tracking)?
+- What year was it acquired?
+- Which artist?
+- What title?
+
+Hint: These questions can be answered by combining two `dplyr` functions, `select` and `arrange`.
+
+
+```{r}
+moma %>% 
+  select(artist, title, year_acquired) %>% 
+  arrange(year_acquired)
+```
+
+
+## What is the oldest painting in the MoMA collection?
+
+- What is the oldest painting in the MoMA collection historically (since they started tracking)? 
+- What year was it created?
+- Which artist?
+- What title?
+
+Again, these questions can be answered by combining the `dplyr` functions `select` and `arrange`.
+
+
+```{r}
+moma %>% 
+  select(artist, title, year_created) %>% 
+  arrange(year_created)
+```
+
+```{r include = FALSE}
+# I am saving this because I want to inject data-related numbers into inline code chunks
+oldest <- moma %>% 
+  select(artist, title, year_created) %>% 
+  arrange(year_created) %>% 
+  slice(1) # take the 1st row
+```
+
+To do inline comments, I could say that the oldest painting is `r oldest %>% pull(title)`, painted by `r oldest %>% pull(artist)` in `r oldest %>% pull(year_created)`.
+
+
+## How many artists?
+
+- How many distinct artists are there?
+
+
+```{r}
+moma %>% 
+  distinct(artist)
+```
+
+Pro tip: You could add a `tally()` too to get just the number of rows. You can also then use `pull()` to get that single number out of the tibble:
+
+```{r}
+num_artists <- moma %>% 
+  distinct(artist) %>% 
+# tally() is short for df %>% summarise(n = n())    
+  tally() %>%
+  pull()
+num_artists
+```
+
+Then I can refer to this number in inline code chunks like: there are `r num_artists` total.
+
+
+## Which artist has the most paintings?
+
+- Which artist has the most paintings ever owned by `moma`? 
+- How many paintings in the MoMA collection by that artist?
+
+
+```{r}
+moma %>% 
+  count(artist, sort = TRUE)
+```
+
+```{r include = FALSE}
+# saving this for future inline code chunks, as before
+pablo <- moma %>% 
+  count(artist, sort = TRUE) %>% 
+  slice(1)
+```
+
+In the `?count` documentation, it says: "`count` and `tally` are designed so that you can call them repeatedly, each time rolling up a level of detail." Try running `count()` again (leave parentheses empty) on your last code chunk.
+
+```{r}
+moma %>% 
+  count(artist, sort = TRUE) %>% 
+  count()
+```
+
+## How many paintings by male vs female artists?
+
+
+```{r}
+moma %>% 
+  count(artist_gender)
+```
+
+
+Now we'll count the number of artists by gender. You'll need to give `count` two variable names in the parentheses: `artist_gender` and `artist`.
+
+```{r}
+moma %>% 
+  count(artist_gender, artist, sort = TRUE) 
+```
+
+This output is not super helpful as we already know that `r pablo %>% pull(artist)` has `r pablo %>% pull(n)` paintings in the MoMA collection.
+But how can we find out which female artist has the most paintings? We have a few options. Let's first add a `filter` for females.
+
+```{r}
+moma %>% 
+  count(artist_gender, artist, sort = TRUE) %>% 
+  filter(artist_gender == "Female")
+```
+
+Another option is to use another `dplyr` function called `top_n()`. Use `?top_n` to see how it works. Or how it won't work, in this context:
+
+```{r}
+moma %>% 
+  count(artist_gender, artist, sort = TRUE) %>% 
+  top_n(2)
+```
+
+How it will work better is following a `group_by(artist_gender)`:
+
+```{r}
+moma %>% 
+  count(artist_gender, artist, sort = TRUE) %>% 
+  group_by(artist_gender) %>% 
+  top_n(1)
+```
+
+
+```{r include = FALSE}
+# saving for inline code chunks
+sherrie <- moma %>% 
+  count(artist_gender, artist, sort = TRUE) %>% 
+  filter(artist_gender == "Female") %>% 
+  slice(1)
+```
+
+Now we can see that `r sherrie %>% pull(artist)` has `r sherrie %>% pull(n)` paintings. This is a pretty far cry from the `r pablo %>% pull(n)` paintings by `r pablo %>% pull(artist)`.
+
+
+## How many artists of each gender are there?
+
+This is a harder question to answer than you think! This is because the level of observation in our current `moma` dataset is *unique paintings*. We have multiple paintings done by the same artists though, so counting just the number of unique paintings is different than counting the number of unique artists. 
+
+Remember how `count` can be used back-to-back to roll up a level of detail? We try that by running `count(artist_gender)` again on the last code chunk.
+
+```{r}
+moma %>% 
+  count(artist_gender, artist) %>% 
+  count(artist_gender)
+```
+
+
+This output takes the previous table (made with `count(artist_gender, artist)`), and essentially ignores the `n` column. So we no longer care about how *many* paintings each individual artist created. Instead, we want to `count` the rows in this *new* table where each row is a unique artist. By counting by `artist_gender` in the last line, we are grouping by levels of that variable (so Female/Male/`NA`) and `nn` is the number of unique artists for each gender category recorded.
+
+
+## When were the most paintings in the collection acquired?
+
+
+This is another job for `dplyr::count`, which we can also use to sort by the counts:
+
+```{r}
+moma %>% 
+  count(year_acquired, sort = TRUE)
+```
+
+
+## When were the most paintings in the collection created?
+
+
+```{r}
+moma %>% 
+  count(year_created, sort = TRUE)
+```
+
+
+## What about the first painting by a solo female artist?
+
+
+To answer this question, we combine `filter`, `select`, and `arrange` from `dplyr`.
+
+When was the first painting by a solo female artist acquired?
+
+```{r}
+moma %>% 
+  filter(num_artists == 1 & n_female_artists == 1) %>% 
+  select(title, artist, year_acquired, year_created) %>% 
+  arrange(year_acquired)
+```
+
+
+What is the oldest painting by a solo female artist, and when was it created?
+
+```{r}
+moma %>% 
+  filter(num_artists == 1 & n_female_artists == 1) %>% 
+  select(title, artist, year_acquired, year_created) %>% 
+  arrange(year_created)
+```
+
+
+# Visualization
+
+## Plot year painted vs year acquired
+
+Let's recreate this plot from [fivethirtyeight](https://fivethirtyeight.com/features/a-nerds-guide-to-the-2229-paintings-at-moma/) (mostly)!
+
+![](https://fivethirtyeight.com/wp-content/uploads/2015/08/roeder-feature-moma-1.png?w=610)
+
+<!-- ![](https://espnfivethirtyeight.files.wordpress.com/2015/08/roeder-feature-moma-1.png?w=1150&quality=90&strip=info) -->
+
+Things to consider:
+
+- You'll want to play around with setting an `alpha` value here - keep in mind that `0` is totally transparent and `1` is opaque. 
+- Try using `geom_abline()` to add the line in red (use the default intercept value of 0). The actual red line is difficult to recreate - here is what the authors say: "The red regression line shows the “modernizing” of MoMA’s collection — how quickly the museum has moved toward acquiring recent paintings."
+- Change the x- and y-axis labels and the plot title to match the plot above
+
+
+```{r}
+ggplot(moma, aes(as.numeric(year_created), as.numeric(year_acquired))) +
+    geom_point(alpha = .3, na.rm = TRUE) +
+    geom_abline(intercept = c(0,0), colour = "red") +
+    labs(x = "Year Painted", y = "Year Acquired", title="MoMA Keeps Its Collection Current", subtitle="Yeaf of a work's acquisition vs. year it was painted")
+```
+
+
+
+## Facet by artist gender
+
+Can you make the same plot above, but facet by artist gender? 
+
+For this to make sense, you probably want to do some filtering to select only those paintings where there was one "solo" artist.
+
+```{r}
+moma_solo <- moma %>% 
+    filter(num_artists == 1)
+
+ggplot(moma_solo, aes(as.numeric(year_created), as.numeric(year_acquired))) +
+    geom_point(alpha = .1) +
+    geom_abline(intercept = c(0,0), colour = "red") +
+    labs(x = "Year Painted", y = "Year Acquired") +
+    ggtitle("MoMA Keeps Its Collection Current") +
+    facet_wrap(~artist_gender)
+```
+
+
+# Plot painting dimensions
+
+Let's (somewhat) try to recreate this scatterplot from [fivethirtyeight](https://fivethirtyeight.com/features/a-nerds-guide-to-the-2229-paintings-at-moma/):
+
+![](https://fivethirtyeight.com/wp-content/uploads/2015/08/roeder-feature-moma-3.png?w=610)
+
+Some things to consider:
+
+- Try filtering all paintings with height less than 600 cm and width less than 760 cm. 
+- If you want to add color as in the original, you'll need to create a new variable using `mutate`. 
+
+
+Hint: You'll probably also want to look into `case_when` to create a categorical variable "on the fly" to use for coloring.
+
+
+```{r}
+moma_dim <- moma %>% 
+    filter(height_cm < 600, width_cm < 760) %>% 
+    mutate(hw_ratio = height_cm / width_cm,
+           hw_cat = case_when(
+               hw_ratio > 1 ~ "taller than wide",
+               hw_ratio < 1 ~ "wider than tall",
+               hw_ratio == 1 ~ "perfect square"
+           ))
+
+library(ggthemes) # to load the fivethirtyeight theme
+
+ggplot(moma_dim, aes(x = width_cm, y = height_cm, colour = hw_cat)) +
+    geom_point(alpha = .5) +
+    ggtitle("MoMA Paintings, Tall and Wide") +
+    scale_colour_manual(name = "",
+                        values = c("gray50", "#FF9900", "#B14CF0")) +
+    theme_fivethirtyeight() +
+    theme(axis.title = element_text()) +
+    labs(x = "Width", y = "Height") 
+```
+
+
+We can do better with colors!
+
+```{r}
+ggplot(moma_dim, aes(x = width_cm, y = height_cm, colour = hw_cat)) +
+  geom_point(alpha = .5) +
+  ggtitle("MoMA Paintings, Tall and Wide") +
+  scale_colour_manual(name = "",
+                      values = c("gray50", "#ee5863", "#6999cd")) +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  labs(x = "Width", y = "Height") 
+```
+
+We could also remove the legend and use an annotation layer instead:
+
+```{r}
+ggplot(moma_dim, aes(x = width_cm, y = height_cm, colour = hw_cat)) +
+    geom_point(alpha = .5, show.legend = FALSE) +
+    ggtitle("MoMA Paintings, Tall and Wide") +
+    scale_colour_manual(name = "",
+                        values = c("gray50", "#ee5863", "#6999cd")) +
+    theme_fivethirtyeight() +
+    theme(axis.title = element_text()) +
+    labs(x = "Width", y = "Height") +
+    annotate(x = 200, y = 380, geom = "text", 
+             label = "Taller than\nWide", color = "#ee5863", 
+             size = 5, hjust = 1, fontface = 2) +
+    annotate(x = 375, y = 100, geom = "text", 
+             label = "Wider than\nTall", color = "#6999cd", 
+             size = 5, hjust = 0, fontface = 2)
+```
+
+# Plot something new & different!
+
+It can be anything - you can change colors, add annotations, switch the geoms, add new variables to examine. The only requirements are:
+
+1. You *make* one new plot that is original, and 
+2. You *write* 1-2 sentences to present the plot and why it makes sense. What questions do you think your plot can help you to answer?
+
+It does not have to be publication-ready right now, but it should make sense as a visualization.

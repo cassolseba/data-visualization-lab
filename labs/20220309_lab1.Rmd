@@ -1,0 +1,1015 @@
+---
+title: "Data visualization lab"
+date: "Mar 9, 2022"
+author: "Marco Chierici"
+output:
+  html_document:
+    theme: readable
+    toc: true # table of content
+    toc_float: true
+    df_print: paged
+editor_options:
+    chink_output_type: console
+  chunk_output_type: console
+---
+
+```{r setup, echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+# this tidy.opts define how the code is formatted.
+# It split the result in order to don't make the code go out of the margins.
+knitr::opts_chunk$set(tidy.opts = list(width.cutoff = 60),
+                      tidy = TRUE,
+                      error = TRUE,
+                      collapse = TRUE,
+                      comment = "#>")
+set.seed(4561)
+```
+
+
+# Data handling in R
+
+(partially abridged from Jenny Bryan, see License information at the end)
+
+## Before we start
+
+### RStudio essential shortcuts
+
+Remember some of the most commonly used RStudio shortcuts:
+
+* function or dataset help: 
+  - press <kbd>F1</kbd> with your cursor anywhere in a function name; or
+  - type `?function_name` in the console
+* execute from script: 
+  - <kbd>Ctrl</kbd> + <kbd>Enter</kbd> (Windows/Linux)
+  - <kbd>Cmd</kbd> + <kbd>Enter</kbd> (macOS)
+* assignment operator (`<-`):
+  - <kbd>Alt</kbd> + <kbd>-</kbd> (Windows/Linux)
+  - <kbd>Option</kbd> + <kbd>-</kbd> (macOS)
+* pipe operator (`%>%`):
+  - <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>m</kbd> (Windows/Linux)
+  - <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>m</kbd> (macOS)
+* insert code chunk in Rmd:
+  - <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>i</kbd> (Windows/Linux)
+  - <kbd>Cmd</kbd> + <kbd>Option</kbd> + <kbd>i</kbd> (macOS)
+
+
+## Data frames are awesome
+
+Whenever you have rectangular, spreadsheet-y data, your default data receptacle in R is a data frame. Do not depart from this without good reason. Data frames are awesome because...
+
+* Data frames package related variables neatly together,
+  - keeping them in sync vis-a-vis row order
+  - applying any filtering of observations uniformly
+* Most functions for inference, modelling, and graphing are happy to be passed a data frame via a `data =` argument. This has been true in base R for a long time.
+* The set of packages known as the [tidyverse](https://tidyverse.tidyverse.org/) takes this one step further and explicitly prioritizes the processing of data frames. This includes popular packages like dplyr and ggplot2. In fact the tidyverse prioritizes a special flavor of data frame, called a "tibble".
+
+Data frames -- unlike general arrays or, specifically, matrices in R -- can hold variables of different flavors, such as character data (subject ID or name), quantitative data (white blood cell count), and categorical information (treated vs. untreated). If you use homogeneous structures, like matrices, for data analysis, you  are likely to make the terrible mistake of spreading a dataset out over multiple, unlinked objects. Why? Because you can't put character data, such as subject name, into the numeric matrix that holds white blood cell count. This fragmentation is a Bad Idea.
+
+## Get the Gapminder data
+
+We will work with some of the data from the [Gapminder project](https://www.gapminder.org/), which was also released as an [R package](https://cran.r-project.org/package=gapminder). We can install it from CRAN like so:
+
+```{r eval = FALSE}
+install.packages("gapminder")
+```
+
+Now load the package:
+
+```{r}
+library(gapminder)
+```
+
+### Installing packages
+
+Here's a quick tip about installing packages. Say you want to install a packages on the fly only if it is not already in your library:
+
+```{r, eval=FALSE}
+if(!require(gapminder)) {
+    install.packages("gapminder")
+    library(gapminder)
+}
+```
+
+`require()` is the same as `library()`, but it also outputs a `TRUE/FALSE` if the package is installed or not.
+
+This can be further improved with the `pacman` (**pac**kage **man**ager) library! It simplifies the process of installing and loading libraries. First, we install and load it the usual way:
+
+```{r, eval=FALSE}
+install.packages("pacman")
+library(pacman)
+```
+
+Now, loading or installing a package on the fly is as easy as:
+
+```{r, eval=FALSE}
+p_load(gapminder)
+```
+
+The function is smart enough to download, install, and load the package if it is not in your library already. Note how the package name does not need to be a string. The beauty of `pacman` is that you can also load multiple libraries at once:
+
+```{r, eval=FALSE}
+# the old way
+library(tidyverse)
+library(gapminder)
+library(openxlsx)
+library(yetAnotherLibrary)
+
+# the new way
+p_load(tidyverse, gapminder, openxlsx, yetAnotherLibrary)
+```
+
+
+## Meet the `gapminder` data frame, or "tibble"
+
+By loading the gapminder package, we now have access to a data frame by the same name. Get an overview of this with `str()`, which displays the structure of an object.
+
+```{r message = FALSE, warning = FALSE}
+str(gapminder)
+```
+
+`str()` will provide a sensible description of almost anything and, worst case, nothing bad can actually happen. When in doubt, just `str()` some of the recently created objects to get some ideas about what to do next.
+
+We could print the `gapminder` object itself to screen. However, if you've used R before, you might be reluctant to do this, because large datasets just fill up your Console and provide very little insight.
+
+This is the first big win for **tibbles**. The [tidyverse](https://tidyverse.tidyverse.org/) offers a special case of R's default data frame: the "tibble", which is a nod to the actual class of these objects, `tbl_df`.
+
+If you have not already done so, install the tidyverse meta-package now:
+
+```{r eval = FALSE}
+install.packages("tidyverse")
+```
+
+Now load it:
+
+```{r}
+library(tidyverse)
+```
+
+Now we can boldly print `gapminder` to screen! It is a tibble (and also a regular data frame) and the tidyverse provides a nice print method that shows the most important stuff and doesn't fill up your Console.
+
+```{r}
+## see? it's still a regular data frame, but also a tibble
+class(gapminder)
+gapminder
+```
+
+If you are dealing with plain vanilla data frames, you can rein in data frame printing explicitly with `head()` and `tail()`. Or turn it into a tibble with `as_tibble()`!
+
+```{r}
+head(gapminder)
+tail(gapminder)
+as_tibble(iris)
+```
+
+More ways to query basic info on a data frame:
+
+```{r}
+names(gapminder)
+ncol(gapminder)
+length(gapminder)
+dim(gapminder)
+nrow(gapminder)
+```
+
+A statistical overview can be obtained with `summary()`:
+
+```{r}
+summary(gapminder) # we'll get the factor and the number of occurrences or the mean
+```
+
+Although we haven't begun our formal coverage of visualization yet, it's so important for smell-testing dataset that we will make a few figures anyway. Here we use only base R graphics, which are... well, very basic.
+
+```{r first-plots-base-R}
+plot(lifeExp ~ year, gapminder)
+plot(lifeExp ~ gdpPercap, gapminder)
+plot(lifeExp ~ log(gdpPercap), gapminder)
+```
+
+Let's go back to the result of `str()` to talk about what a data frame is.
+
+```{r}
+str(gapminder)
+```
+
+A data frame is a special case of a *list*, which is used in R to hold just about anything. Data frames are a special case where the length of each list component is the same. Data frames are superior to matrices in R because they can hold vectors of different flavors, e.g. numeric, character, and categorical data can be stored together. This comes up a lot!
+
+## Look at the variables inside a data frame
+
+To specify a single variable from a data frame, use the dollar sign `$`. Let's explore the numeric variable for life expectancy.
+
+```{r histogram-lifeExp}
+head(gapminder$lifeExp)
+summary(gapminder$lifeExp)
+hist(gapminder$lifeExp) # it takes by default the occurrences vs. the specified data
+```
+
+The year variable is an integer variable, but since there are so few unique values it also functions a bit like a categorical variable.
+
+```{r}
+summary(gapminder$year)
+table(gapminder$year)
+```
+
+The variables for country and continent hold truly categorical information, which is stored as a *factor* in R.
+
+```{r}
+class(gapminder$continent) # type of the variable
+summary(gapminder$continent)
+levels(gapminder$continent)
+nlevels(gapminder$continent)
+```
+
+The __levels__ of the factor `continent` are "Africa", "Americas", etc. and this is what's usually presented to your eyeballs by R. In general, the levels are friendly human-readable character strings, like "male/female" and "control/treated". But *never ever ever* forget that, under the hood, R is really storing integer codes 1, 2, 3, etc. Look at the result from `str(gapminder$continent)` if you are skeptical.
+
+```{r}
+# str() on a factor variable
+# strange result
+str(gapminder$continent)
+```
+
+This [Janus](https://en.wikipedia.org/wiki/Janus)-like nature of factors means they are rich with booby traps for the unsuspecting but they are a necessary evil. Learning how to properly care and feed for factors is crucial in modelling and figure-making.
+
+Here we count how many observations are associated with each continent and, as usual, try to portray that info visually. This makes it much easier to quickly see that African countries are well represented in this dataset.
+
+```{r tabulate-continent}
+table(gapminder$continent) # display occurrences
+barplot(table(gapminder$continent)) # put occurrences in a barplot  
+```
+
+
+## Exercises
+
+Let's get the data for just 2007. How many rows? How many observations per continent?
+
+```{r}
+# save in hDat a subset of gapminder
+# pass the argument subset, take the year 2007 condition as a subset
+hDat <- subset(gapminder, subset = year == 2007)
+str(hDat)
+table(hDat$continent)
+```
+
+If you want just some rows and/or just some variables, for inspection or to assign as a new object, use `subset()`:
+
+```{r subset}
+subset(gapminder, subset = country == "Cambodia")
+subset(gapminder, subset = country %in% c("Japan", "Belgium"))
+subset(gapminder, subset = year == 1952)
+subset(gapminder, subset = country == "Uruguay", select = c(country, year, lifeExp))
+
+plot(lifeExp ~ year, gapminder, subset = country == "Zimbabwe")
+plot(lifeExp ~ log(gdpPercap), gapminder, subset = year == 2007)
+```
+
+Now get data for which life expectancy is less than 32 years, assign it to an object, and determine how many observations are there overall and by continent.
+
+```{r ex}
+df_sub <- subset(gapminder, subset = lifeExp < 32)
+nrow(df_sub)
+table(df_sub$continent)
+```
+
+
+---
+
+# Transforming data with `dplyr`
+
+
+## Intro
+
+[dplyr](https://dplyr.tidyverse.org/) is a package for data manipulation, developed by Hadley Wickham and Romain Francois. It is built to be fast, highly expressive, and open-minded about how your data is stored. It is installed as part of the [tidyverse](https://tidyverse.tidyverse.org/) meta-package and, as a core package, it is among those loaded via `library(tidyverse)`.
+
+dplyr's roots are in an earlier package called [plyr](http://plyr.had.co.nz/), which implements the ["split-apply-combine" strategy for data analysis](https://www.jstatsoft.org/article/view/v040i01). Where plyr covers a diverse set of inputs and outputs (e.g., arrays, data frames, lists), dplyr has a laser-like focus on data frames or, in the tidyverse, "tibbles". dplyr is a package-level treatment of the `ddply()` function from plyr, because "data frame in, data frame out" proved to be so incredibly important.
+
+Have no idea what I'm talking about? Not sure if you care? If you use these base R functions: `subset()`, `apply()`, `[sl]apply()`, `tapply()`, `aggregate()`, `split()`, `do.call()`, `with()`, `within()`, then you should keep reading. Also, if you use `for()` loops a lot, you might enjoy learning other ways to iterate over rows or groups of rows or variables in a data frame.
+
+
+## Think before you create excerpts of your data ...
+
+If you feel the urge to store a little snippet of your data:
+
+```{r}
+# save the subset from row 241 to row 252 in variable canada
+# parenthesis is needed to run the command and display the result (in rendering)
+# only an example, not suggested to subset by rows (think about updated dataset..)
+(canada <- gapminder[241:252, ])
+```
+
+Stop and ask yourself ...
+
+> Do I want to create mini datasets for each level of some factor (or unique combination of several factors) ... in order to compute or graph something?  
+
+If YES, __use proper data aggregation techniques__ or "faceting" in `ggplot2` (we'll cover this in a later lesson!) -- __don’t subset the data__. Or, more realistic, only subset the data as a temporary measure while you develop your elegant code for computing on or visualizing these data subsets.
+
+Seriously consider whether you can achieve your goals by simply using the `subset =` argument of, e.g., the `lm()` function, to limit computation to your excerpt of choice. Lots of functions offer a `subset =` argument!
+
+Copies and excerpts of your data clutter your workspace, invite mistakes, and sow general confusion. Avoid whenever possible.
+
+Reality can also lie somewhere in between. You will find the workflows presented below can help you accomplish your goals with minimal creation of temporary, intermediate objects.
+
+
+## Use `filter()` to subset data row-wise
+
+`filter()` takes logical expressions and returns the rows for which all are `TRUE`.
+
+```{r}
+filter(gapminder, lifeExp < 29)
+filter(gapminder, country == "Rwanda", year > 1979)
+filter(gapminder, country %in% c("Rwanda", "Afghanistan"))
+# equivalent:
+filter(gapminder, country == "Rwanda" | country == "Afghanistan")
+```
+
+Compare with some base R code to accomplish the same things:
+
+```{r eval = FALSE}
+gapminder[gapminder$lifeExp < 29, ] ## repeat `gapminder`, [i, j] indexing is distracting
+# tipical error is forgotting the comma next the value
+subset(gapminder, country == "Rwanda") ## almost same as filter; quite nice actually
+```
+
+Under no circumstances should you subset your data the way I did before:
+
+```{r eval = FALSE}
+# NOT to do
+excerpt <- gapminder[241:252, ]
+```
+
+Why is this a terrible idea?
+
+* It is **not self-documenting**. What is so special about rows 241 through 252?
+* It is **fragile**. This line of code will produce different results if someone changes the row order of `gapminder`, e.g. sorts the data earlier in the script.
+  
+```{r eval = FALSE}
+filter(gapminder, country == "Canada")
+```
+
+This call explains itself and is fairly robust.
+
+## Meet the pipe operator
+
+Before we go any further, we should exploit the new pipe operator that the tidyverse imports from the [magrittr](https://magrittr.tidyverse.org/) package by Stefan Bache. This is going to change your data analytical life. You no longer need to enact multi-operation commands by nesting them inside each other. This new syntax leads to code that is much easier to write and to read.
+
+Here's what it looks like: `%>%` (see above for convenient keyboard shortcuts).
+
+```{r}
+# same as head(gapminder)
+gapminder %>% head()
+```
+
+This is equivalent to `head(gapminder)`. The pipe operator takes the thing on the left-hand-side and __pipes__ it into the function call on the right-hand-side -- literally, drops it in as the first argument.
+
+Never fear, you can still specify other arguments to this function! To see the first 3 rows of `gapminder`, we could say `head(gapminder, 3)` or this:
+
+```{r}
+# same as head(gapminder, 3)
+gapminder %>% head(3)
+```
+
+If the assignment operator, `<-`, should make you think "gets", similarly you should think "then" whenever you see the pipe operator, `%>%`.
+
+You are probably not impressed yet, but the magic will soon happen.
+
+## Use `select()` to subset the data on variables or columns.
+
+Back to dplyr....
+
+Use `select()` to subset the data on variables or columns. Here's a conventional call:
+
+```{r}
+# select columns of the dataset (tibble format)
+select(gapminder, year, lifeExp)
+```
+
+And here's the same operation, but written with the pipe operator and piped through `head()`:
+
+```{r}
+# take gapminder dataset, select the two columns and then display the first 4
+gapminder %>%
+  select(year, lifeExp) %>%
+  head(4)
+```
+
+Think: "Take `gapminder`, then select the variables year and lifeExp, then show the first 4 rows."
+
+## Revel in the convenience
+
+Here's the data for Cambodia, but only certain variables:
+
+```{r}
+# take gapminder, filter by Cambodia and then select only the two specified columns
+gapminder %>%
+  filter(country == "Cambodia") %>%
+  select(year, lifeExp)
+```
+
+and what a typical base R call would look like:
+
+```{r end_dplyr}
+# old format using basic R, to do the same thing written above
+gapminder[gapminder$country == "Cambodia", c("year", "lifeExp")]
+```
+
+
+## Create a copy of `gapminder`
+
+We're going to make changes to the `gapminder` tibble. To eliminate any fear that you're damaging the data that comes with the package, we create an explicit copy of `gapminder` for our experiments.
+
+```{r}
+(my_gap <- gapminder)
+```
+
+**Pay close attention** to when we evaluate statements but let the output just print to screen:
+
+```{r eval = FALSE}
+## let output print to screen, but do not store
+my_gap %>% filter(country == "Canada")
+```
+
+... versus when we assign the output to an object, possibly overwriting an existing object.
+
+```{r eval = FALSE}
+## store the output as an R object
+my_precious <- my_gap %>% filter(country == "Canada")
+```
+
+## Use `mutate()` to add new variables
+
+Imagine we wanted to recover each country's GDP. After all, the Gapminder data has a variable for population and GDP per capita. Let's multiply them together.
+
+`mutate()` is a function that defines and inserts new variables into a tibble. You can refer to existing variables by name.
+
+```{r}
+my_gap %>%
+  mutate(gdp = pop * gdpPercap)
+```
+
+Hmmmm ... those GDP numbers are almost uselessly large and abstract. Consider the advice of Randall Munroe of xkcd:
+
+>One thing that bothers me is large numbers presented without context... 'If I added a zero to this number, would the sentence containing it mean something different to me?' If the answer is 'no,' maybe the number has no business being in the sentence in the first place."
+
+Probably expressing the GDP in billions is a better idea:
+
+```{r}
+# display in billions, more readable!
+my_gap %>% 
+    mutate(gdp_billion = pop * gdpPercap / 1e9)
+```
+
+Suppose we want to add a few more new columns: 
+
+1. one expressing the population in millions,
+1. and another one that multiplies life expectancy (lifeExp) by population (pop). I guess this value would be the total years expected to live by a population. 
+
+With `mutate()`, we can add several new variables at once:
+
+```{r}
+my_gap %>% 
+    mutate(gdp_billion = pop * gdpPercap / 1e9, # population in billions
+           popMil = round(pop / 1e6, 1), # population in millions
+           total_years = pop * lifeExp) # years expected to live
+```
+
+
+## Use `arrange()` to row-order data in a principled way
+
+`arrange()` reorders the rows in a data frame. Imagine you wanted this data ordered by year then country, as opposed to by country then year.
+
+```{r}
+# order by year, and then by country
+my_gap %>%
+  arrange(year, country)
+```
+
+Or maybe you want just the data from 2007, sorted on life expectancy?
+
+```{r}
+# order by lifeExp only the subset of the year 2007
+my_gap %>%
+  filter(year == 2007) %>%
+  arrange(lifeExp)
+```
+
+Oh, you'd like to sort on life expectancy in **desc**ending order? Then use `desc()`.
+
+```{r}
+my_gap %>%
+  filter(year == 2007) %>%
+  arrange(desc(lifeExp))
+```
+
+I advise that your analyses NEVER rely on rows or variables being in a specific order. But it's still true that human beings write the code and the interactive development process can be much nicer if you reorder the rows of your data as you go along. Also, once you are preparing tables for human eyeballs, it is imperative that you step up and take control of row order.
+
+## Use `rename()` to rename variables
+
+Say you are not much of a [`camelCase`](https://en.wikipedia.org/wiki/Camel_case) person, but rather you are all about [`snake_case`](https://en.wikipedia.org/wiki/Snake_case). So you are vexed by the variable names used in this data set. Let's rename some variables!
+
+```{r}
+my_gap %>%
+  rename(life_exp = lifeExp,
+         gdp_percap = gdpPercap)
+```
+
+The thing to remember here is: `new_variable = oldVariable`.
+
+I did NOT assign the post-rename object back to `my_gap` because that would make the chunks in this tutorial harder to copy/paste and run out of order. In real life, I would probably assign this back to `my_gap`, in a data preparation script, and proceed with the new variable names.
+
+## `select()` can rename and reposition variables
+
+You've seen simple use of `select()`. There are two tricks you might enjoy:
+
+1. `select()` can rename "on the fly" the variables you request to keep.
+1. `select()` can be used with `everything()` to hoist a variable up to the front of the tibble.
+  
+```{r}
+my_gap %>%
+  filter(country == "Burundi", year > 1996) %>% 
+  select(yr = year, lifeExp, gdpPercap) %>% # rename year while selecting
+  select(gdpPercap, everything()) # reorder the columns, having gdpPercap first
+```
+
+`everything()` is one of several helpers for variable selection. Read its help to see the rest.
+
+## `group_by()` is a mighty weapon
+
+I have found ~~friends and family~~ collaborators love to ask seemingly innocuous questions like, "which country experienced the sharpest 5-year drop in life expectancy?". In fact, that is a totally natural question to ask. But if you are using a language that doesn't know about data, it's an incredibly annoying question to answer.
+
+
+dplyr offers powerful tools to solve this class of problem:
+
+* `group_by()` adds extra structure to your dataset -- grouping information -- which lays the groundwork for computations within the groups.
+* `summarize()` takes a dataset with $n$ observations, computes requested summaries, and returns a dataset with 1 observation.
+* Window functions take a dataset with $n$ observations and return a dataset with $n$ observations.
+* `mutate()` and `summarize()` will honor groups.
+  
+Combined with the verbs you already know, these new tools allow you to solve an extremely diverse set of problems with relative ease.
+
+### Counting things up
+
+Let's start with simple counting.  How many observations do we have per continent?
+
+```{r}
+my_gap %>%
+  group_by(continent) %>%
+  summarize(n = n())
+```
+
+Let us pause here to think about the tidyverse. You could get these same frequencies using `table()` from base R.
+
+```{r}
+table(gapminder$continent)
+str(table(gapminder$continent))
+```
+
+But the object of class `table` that is returned makes downstream computation a bit fiddlier than you'd like. For example, it's too bad the continent levels come back only as *names* and not as a proper factor, with the original set of levels. This is an example of how the tidyverse smooths transitions where you want the output of step `i` to become the input of step `i + 1`.
+
+The `count()` function is a convenient function that does both grouping and counting.
+
+```{r}
+my_gap %>% 
+  count(continent) # same done with group_by and summarize
+```
+
+What if we wanted to add the number of unique countries for each continent? You can compute multiple summaries inside `summarize()`. Use the `n_distinct()` function to count the number of distinct countries within each continent.
+
+```{r}
+my_gap %>%
+  group_by(continent) %>%
+  summarize(n = n(), # store the number of total elements for country
+            n_countries = n_distinct(country)) # count the distinct element
+```
+
+### General summarization
+
+The functions you'll apply within `summarize()` include classical statistical summaries, like  `mean()`, `median()`, `var()`, `sd()`, `mad()`, `IQR()`, `min()`, and `max()`. Remember they are functions that take $n$ inputs and distill them down into 1 output.
+
+Although this may be statistically ill-advised, let's compute the average life expectancy by continent.
+
+```{r}
+my_gap %>%
+  group_by(continent) %>%
+  summarize(avg_lifeExp = mean(lifeExp))
+```
+
+What if we wanted to summarize multiple columns? We combine `summarize()` with `across()` to apply the same summary function(s) to multiple variables. Let's compute average and median life expectancy and GDP per capita by continent by year, but only for 1952 and 2007.
+
+```{r}
+my_gap %>%
+  filter(year %in% c(1952, 2007)) %>%
+  group_by(continent, year) %>%
+    summarize(across(c(lifeExp, gdpPercap), list(~mean(.), ~median(.))))
+    # across: pass the columns as vector (c) and the function you want to apply
+    # pay attention at the dot inside mean and median
+    # compute the mean and the median of lifeExp and gdpPercap
+    # essentially do something on the specified columns
+```
+
+Let's focus just on Asia. What are the minimum and maximum life expectancy seen by year?
+
+```{r}
+my_gap %>%
+  filter(continent == "Asia") %>% # pick Asia
+  group_by(year) %>% # group by year
+  summarize(min_lifeExp = min(lifeExp), max_lifeExp = max(lifeExp))
+  # search for min and max
+```
+
+
+## Grouped mutate
+
+Sometimes you don't want to collapse the $n$ rows for each group into one row. You want to keep your groups, but compute within them.
+
+### Computing with group-wise summaries
+
+Let's make a new variable that is the years of life expectancy gained (lost) relative to 1952, for each individual country. We group by country and use `mutate()` to make a new variable. The `first()` function extracts the first value from a vector. Notice that `first()` is operating on the vector of life expectancies *within each country group*.
+
+```{r}
+my_gap %>% 
+  group_by(country) %>% # group by country
+  select(country, year, lifeExp) %>% # select only this variables
+  mutate(lifeExp_gain = lifeExp - first(lifeExp)) %>% 
+  # create a new variable and compute the gain or the loss
+  filter(year < 1963) # then filter by years of our interest
+```
+
+Within country, we take the difference between life expectancy in year $i$ and life expectancy in 1952. Therefore we always see zeroes for 1952 and, for most countries, a sequence of positive and increasing numbers.
+
+
+## All together
+
+So let's answer that "simple" question: which country experienced the sharpest 5-year drop in life expectancy? Recall that this excerpt of the Gapminder data only has data every five years, e.g. for 1952, 1957, etc. So this really means looking at life expectancy changes between adjacent timepoints.
+
+>**Observation:** the following code assumes that `year` is already sorted in ascending order. But as I told you before, you shouldn't rely on rows or variables being in a specific order! So, a safer way to proceed is to perform a preliminary `arrange(country, year)` to get the data in the expected order. I added a comment below.
+
+At this point, that's just too easy, so let's do it by continent while we're at it.
+
+```{r end_dplyr_single}
+my_gap %>%
+  ## this arrange() ensures the data are correctly ordered
+  arrange(country, year) %>%
+  select(country, year, continent, lifeExp) %>%
+  group_by(continent, country) %>%
+  ## within country, take (lifeExp in year i) - (lifeExp in year i - 1)
+  ## positive means lifeExp went up, negative means it went down
+  mutate(le_delta = lifeExp - lag(lifeExp)) %>% # lag: subtract the previous value
+  ## within country, retain the worst lifeExp change = smallest or most negative
+  summarize(worst_le_delta = min(le_delta, na.rm = TRUE)) %>% 
+  ## na.rm -> does not consider potential na in the group
+  ## within continent, retain the row with the lowest worst_le_delta
+  top_n(-1, wt = worst_le_delta) %>% # -1 means take the last value
+  arrange(worst_le_delta)
+```
+
+Ponder that for a while. The subject matter and the code. Mostly you're seeing what genocide looks like in dry statistics on average life expectancy.
+
+Break the code into pieces, starting at the top, and inspect the intermediate results. That's certainly how I was able to *write* such a thing. These commands do not leap fully formed out of anyone's forehead -- they are built up gradually, with lots of errors and refinements along the way. I'm not even sure it's a great idea to do so much manipulation in one fell swoop. Is the statement above really hard for you to read? If yes, then by all means break it into pieces and make some intermediate objects - we are not in a "write the best one-liner at all costs" contest. Your code should be easy to write and read when you're done.
+
+---
+
+# Relational data
+
+## Joining two tables
+
+Working with two small data frames: `superheroes` and `publishers`.
+
+```{r start_joins, message = FALSE, warning = FALSE, tidy = FALSE}
+# tribble -> function to create a tibble
+superheroes <- tibble::tribble(
+       ~name, ~alignment,  ~gender,          ~publisher,
+   "Magneto",      "bad",   "male",            "Marvel",
+     "Storm",     "good", "female",            "Marvel",
+  "Mystique",      "bad", "female",            "Marvel",
+    "Batman",     "good",   "male",                "DC",
+     "Joker",      "bad",   "male",                "DC",
+  "Catwoman",      "bad", "female",                "DC",
+   "Hellboy",     "good",   "male", "Dark Horse Comics"
+  )
+
+publishers <- tibble::tribble(
+  ~publisher, ~yr_founded,
+        "DC",       1934L, # L say to R to intend the number as long integer
+    "Marvel",       1939L, # without L, R intends the number as a double
+     "Image",       1992L
+  )
+```
+
+Watch the row and variable order of the join results for a healthy reminder of why it's dangerous to rely on any of that in an analysis.
+
+As usual, start by actually looking at the data:
+
+```{r}
+superheroes
+publishers
+```
+
+### `inner_join(superheroes, publishers)`
+
+> `inner_join(x, y)`: Return all rows from `x` where there are matching values in `y`, and all columns from `x` and `y`. If there are multiple matches between `x` and `y`, all combination of the matches are returned. This is a mutating join.
+
+```{r}
+(ijsp <- inner_join(superheroes, publishers))
+# essentially, return the common values
+```
+
+We lose Hellboy in the join because, although he appears in `x = superheroes`, his publisher Dark Horse Comics does not appear in `y = publishers`. The join result has all variables from `x = superheroes` plus `yr_founded`, from `y`.
+
+### `left_join(superheroes, publishers)`
+
+> `left_join(x, y)`: Return all rows from `x`, and all columns from `x` and `y`. If there are multiple matches between `x` and `y`, all combination of the matches are returned. This is a mutating join.
+
+```{r}
+(ljsp <- left_join(superheroes, publishers))
+# takes the values of the left hand tibble and put NA if there are no common values
+```
+
+We basically get `x = superheroes` back, but with the addition of variable `yr_founded`, which is unique to `y = publishers`. Hellboy, whose publisher does not appear in `y = publishers`, has an `NA` for `yr_founded`.
+
+
+### `anti_join(superheroes, publishers)`
+
+> `anti_join(x, y)`: Return all rows from `x` where there are not matching values in `y`, keeping just columns from `x`. This is a filtering join.
+
+```{r}
+(ajsp <- anti_join(superheroes, publishers))
+# opposite of left join
+# keep the values that are not in the right hand and takes only the columns on
+# the left hand tibble
+```
+
+We keep __only__ Hellboy now (and do not get `yr_founded`).
+
+
+### `inner_join(publishers, superheroes)`
+
+
+```{r}
+(ijps <- inner_join(publishers, superheroes))
+# order matter!
+```
+
+In a way, this does illustrate multiple matches, if you think about it from the `x = publishers` direction. Every publisher that has a match in `y = superheroes` appears multiple times in the result, once for each match. In fact, we're getting the same result as with `inner_join(superheroes, publishers)`, up to variable order (which you should also never rely on in an analysis).
+
+
+### `left_join(publishers, superheroes)`
+
+
+```{r}
+(ljps <- left_join(publishers, superheroes))
+# in this case we have 'Image' but not 'Dark Horse Comics'
+```
+
+We get a similar result as with `inner_join()` but the publisher Image survives in the join, even though no superheroes from Image appear in `y = superheroes`. As a result, Image has `NA`s for `name`, `alignment`, and `gender`.
+
+### `full_join(superheroes, publishers)`
+
+> `full_join(x, y)`: Return all rows and all columns from both `x` and `y`. Where there are not matching values, returns `NA` for the one missing. This is a mutating join.
+
+```{r}
+(fjsp <- full_join(superheroes, publishers))
+# join ALL
+```
+
+We get all rows of `x = superheroes` plus a new row from `y = publishers`, containing the publisher Image. We get all variables from `x = superheroes` AND all variables from `y = publishers`. Any row that derives solely from one table or the other carries `NA`s in the variables found only in the other table.
+
+
+---
+
+# Tidy data
+
+
+
+```{r prepare-data, include=FALSE}
+library(tidyverse)
+lotr_tidy <- read_csv("https://github.com/jennybc/lotr-tidy/raw/master/data/lotr_tidy.csv")
+
+fship <- tibble::tribble(
+    ~Film, ~Race, ~Female, ~Male,
+    "The Fellowship Of The Ring", "Elf", 1229, 971,
+    "The Fellowship Of The Ring", "Hobbit", 14, 3644,
+    "The Fellowship Of The Ring", "Man", 0, 1995,
+)
+
+ttow <- tibble::tribble(
+    ~Film, ~Race, ~Female, ~Male,
+    "The Two Towers", "Elf", 331, 513,
+    "The Two Towers", "Hobbit", 0, 2463,
+    "The Two Towers", "Man", 401, 3589,    
+)
+
+rking <- tibble::tribble(
+    ~Film, ~Race, ~Female, ~Male,
+    "The Return Of The King", "Elf", 183, 510,
+    "The Return Of The King", "Hobbit", 2, 2673,
+    "The Return Of The King", "Man", 268, 2459,
+)
+
+untidy_films <- list("The Fellowship Of The Ring"=fship,
+                     "The Two Towers"=ttow,
+                     "The Return Of The King"=rking)
+```
+
+>If I had one thing to tell biologists learning bioinformatics, it would be "write code for humans, write data for computers".
+>[Vince Buffalo](https://twitter.com/vsbuffalo/statuses/358699162679787521)
+
+An important aspect of "writing data for computers" is to make your data __tidy__. Key features of __tidy__ data:
+
+  * Each column is a variable
+  * Each row is an observation
+
+If you are struggling to make a figure, for example, stop and think hard about whether your data is __tidy__. Untidiness is a common, often overlooked cause of agony in data analysis and visualization.
+
+## Lord of the Rings example
+
+I'll show you a practical example on some untidy data created from [this data from the Lord of the Rings Trilogy](https://github.com/jennybc/lotr).
+
+We have one table per movie. In each table, we have the total number of words spoken, by characters of different races and genders.
+
+```{r results = 'asis', echo = FALSE}
+knitr::kable(untidy_films[["The Fellowship Of The Ring"]],
+             digits = 0, caption = "The Fellowship Of The Ring")
+```
+
+
+```{r results = 'asis', echo = FALSE}
+knitr::kable(untidy_films[["The Two Towers"]],
+             digits = 0, caption = "The Two Towers")
+```
+
+
+```{r results = 'asis', echo = FALSE}
+knitr::kable(untidy_films[["The Return Of The King"]],
+             digits = 0, caption = "The Return Of The King")
+```
+
+
+
+You could imagine finding these three tables as separate worksheets in an Excel workbook. Or hanging out in some cells on the side of a worksheet that contains the underlying data raw data. Or as tables on a webpage or in a Word document.
+
+This format makes it easy for a *human* to look up the number of words spoken by female elves in The Two Towers. But this format actually makes it pretty hard for a *computer* to pull out such counts and, more importantly, to compute on them or graph them.
+
+### Exercises
+
+Look at the tables above and answer these questions:
+
+  * What's the total number of words spoken by male hobbits?
+  * Does a certain `Race` dominate a movie? Does the dominant `Race` differ across the movies?
+  
+How well does your approach scale if there were many more movies or if I provided you with updated data that includes all the `Races` (e.g. dwarves, orcs, etc.)?
+
+## Tidy Lord of the Rings data
+
+Here's how the same data looks in tidy form:
+
+```{r echo = FALSE, results = 'asis'}
+knitr::kable(lotr_tidy, digits = 0)
+```
+
+Notice that tidy data is generally *taller and narrower*. It doesn't fit nicely on the page. Certain elements get repeated alot, e.g. `Hobbit`. For these reasons, we often instinctively resist __tidy__ data as inefficient or ugly. But, unless and until you're making the final product for a textual presentation of data, ignore your yearning to see the data in a compact form.
+
+## Benefits of tidy data
+
+With the data in tidy form, it's natural to *get a computer* to do further summarization or to make a figure. This assumes you're using language that is "data-aware", which R certainly is. Let's answer the questions posed above.
+
+### What's the total number of words spoken by male hobbits?
+
+```{r}
+lotr_tidy %>% 
+  count(Gender, Race, wt = Words)
+## outside the tidyverse:
+# aggregate(Words ~ Gender, data = lotr_tidy, FUN = sum)
+```
+
+Now it takes a small bit of code to compute the word total for both genders of all races across all films. The total number of words spoken by male hobbits is `r lotr_tidy %>% filter(Race == 'Hobbit', Gender == 'Male') %>% summarize(sum(Words))`. It was important here to have all word counts in a single variable, within a data frame that also included a variables for gender and race.
+
+### Does a certain race dominate a movie? Does the dominant race differ across the movies?
+
+First, we sum across gender, to obtain word counts for the different races by movie.
+
+```{r}
+(by_race_film <- lotr_tidy %>% 
+   group_by(Film, Race) %>% 
+   summarize(Words = sum(Words)))
+## outside the tidyverse:
+# (by_race_film <- aggregate(Words ~ Race * Film, data = lotr_tidy, FUN = sum))
+```
+
+We can stare hard at those numbers to answer the question. But even nicer is to depict the word counts we just computed in a barchart. We'll use `ggplot2` for this - don't focus on the syntax right now as we'll cover it extensively in a later lesson, but here's a preview!
+
+```{r barchart-lotr-words-by-film-race}
+p <- ggplot(by_race_film, aes(x = Film, y = Words, fill = Race))
+p + geom_bar(stat = "identity", position = "dodge") +
+  coord_flip() + guides(fill = guide_legend(reverse = TRUE))
+```
+
+Hobbits are featured heavily in The Fellowship of the Ring, whereas Men had a lot more screen time in The Two Towers. They were equally prominent in the last movie, The Return of the King.
+
+Again, it was important to have all the data in a single data frame, all word counts in a single variable, and associated variables for Film and Race.
+
+
+## From untidy to tidy
+
+### Import untidy Lord of the Rings data
+
+We now import the untidy data that was presented in the three film-specific word count tables so far.
+
+I assume that data can be found as three plain text, delimited files, one for each film. How to liberate data from spreadsheets or tables in word processing documents is beyond the scope of this tutorial.
+
+For the sake of this lesson, I already stored the (untidy) data in the three tibbles (data frames) `fship`, `ttow`, and `rking`. Let's do some inspection.
+
+### Collect untidy Lord of the Rings data into a single data frame
+
+We have one tibble per film, each with a common set of 4 variables. Step one in tidying this data is to glue them together into one data frame, stacking them up row wise. This is called row binding and we use `dplyr::bind_rows()`.
+
+```{r}
+lotr_untidy <- bind_rows(fship, ttow, rking)
+str(lotr_untidy)
+lotr_untidy
+```
+
+### Tidy the untidy Lord of the Rings data
+
+We are still violating one of the fundamental principles of __tidy data__. "Word count" is a fundamental variable in our dataset and it's currently spread out over two variables, `Female` and `Male`. 
+
+Conceptually, we need to gather up the word counts into a single variable and create a new variable `Gender` to track whether each count refers to females or males: we are moving from wide to long formats. We use the `pivot_longer` function from the `tidyr` package to do this:
+
+```{r}
+lotr_tidy <- pivot_longer(lotr_untidy, Female:Male, names_to="Gender", values_to="Words")
+# from wider to taller
+lotr_tidy
+```
+
+Tidy data ... mission accomplished!
+
+To explain our call to `gather()` above, let's read it from left to right: from `lotr_untidy` we took the variables `Female` and `Male`, putting their *names* in the new column `Gender` and gathering their *values* into the new variable `Words`. All other variables, such as `Film`, remain unchanged and are simply replicated as needed. The documentation for `pivot_longer()` gives more examples.
+
+
+### Write the tidy data to a delimited file
+
+Now we write this multi-film, tidy dataset to file for use in various downstream scripts for further analysis and visualization. This would make an excellent file to share on the web with others, providing a tool-agnostic, ready-to-analyze entry point for anyone wishing to play with this data.
+
+```{r}
+write_csv(lotr_tidy, file="lotr_tidy.csv")
+```
+
+
+## From tidy to untidy
+
+Enough about tidy data. How do I make it messy?
+
+This might be useful at the end of an analysis, for preparing figures or tables.
+
+```{r, eval=FALSE}
+# in case we start from here, read the tidy data from file
+lotr_tidy <- read_csv(file.path("data", "lotr_tidy.csv"))
+```
+
+Our tidy data look like this:
+
+```{r}
+lotr_tidy
+```
+
+Now we practice with `pivot_wider`: let's create three columns storing the values from the old `Race` variable.
+
+```{r}
+## practicing with spread: let's get one variable per Race
+lotr_tidy %>% 
+  pivot_wider(names_from=Race, values_from=Words)
+```
+
+Let's do the same, this time using the `Gender` variable.
+
+```{r}
+## practicing with spread: let's get one variable per Gender
+lotr_tidy %>% 
+  pivot_wider(names_from=Gender, values_from=Words)
+```
+
+Now we combine together the values from `Race` and `Gender` through the `unite()` function, and populate new columns based on these new values.
+
+```{r}
+## practicing with spread ... and unite: let's get one variable per combo of Race and Gender
+lotr_tidy %>% 
+  unite(Race_Gender, Race, Gender, sep="_") %>% 
+  pivot_wider(names_from=Race_Gender, values_from=Words)
+```
+
+
+# Resources
+
+* dplyr official stuff: Package home [on CRAN](https://cran.r-project.org/package=dplyr); [introduction vignette](https://cran.r-project.org/web/packages/dplyr/vignettes/dplyr.html)
+
+* Original LOTR tutorial: [Jenny Bryan](https://github.com/jennybc/lotr)
+
+* Simple aggregation with the tidyverse: `dplyr::count()` and `dplyr::group_by()` + `dplyr::summarize()`, [Data transformation](http://r4ds.had.co.nz/transform.html) chapter in R for Data Science.
+
+* General aggregation with the tidyverse: [STAT 545 coverage](http://stat545.com/block024_group-nest-split-map.html) of general Split-Apply-Combine via nested data frames.
+
+* Simple aggregation with base R: `aggregate()`.
+
+* General aggregation with base R: `tapply()`, `split()`, `by()`, etc.
+
+
+# License
+
+These handouts are available under the [Creative Commons - Attribution-ShareAlike 4.0 International Licence](https://creativecommons.org/licenses/by-sa/4.0/) and were adapted from [Jenny Bryan's STAT 545](https://stat545.com/) available under the same license.
