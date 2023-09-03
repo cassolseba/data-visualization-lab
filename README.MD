@@ -72,3 +72,27 @@
 4. Plot two **choropleth map** and a **statical chart**.
 5. Project with **tSNE** and **UMAP**.
 6. Reproduce that plot: **heatmap**.
+
+# 2022 - 12 February
+1. Visual encoding (not done).
+2. Work of William Playfair in history of Data Visualization (not done.)
+3. Differences and similarities between PCA and MDS (not done).
+4. Plot a **choropleth map** and a **statistical chart**.
+5. Projet with **PCA**, **MDS**, **t-SNE** and **UMAP**.
+6. Reproduce that plot: **polar chart** (?).
+
+# 2022 - 9 September
+1. Visual encoding (not done).
+2. Use of text in data visualization (not done).
+3. Describe PCA algorithm (not done).
+4. Plot a **choropleth map** and a **statistical chart**.
+5. Projet with **PCA**, **MDS**, **t-SNE** and **UMAP**.
+6. Reproduce that plot: **map**.
+
+# 2023 - 14 July
+1. Visual encoding. **Barplot**, **dendrogram** and **time series**.
+2. Discuss geometric projection in maps.
+3. Discuss parameters of UMAP.
+4. Plot a **choropleth map** and a **statistical chart**.
+5. Dimensionality reduction algorithm of your choice.
+6. Reproduce that plot: **scatterplot** with inner **barplot**.
